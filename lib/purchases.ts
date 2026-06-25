@@ -6,8 +6,8 @@ import Purchases, {
 import { Platform } from 'react-native'
 
 // Fill these in after creating your RevenueCat project at app.revenuecat.com
-const RC_IOS_KEY = 'test_qpjyeOOmQdrBroyyWhjbrNiLfZc'
-const RC_ANDROID_KEY = 'test_qpjyeOOmQdrBroyyWhjbrNiLfZc'
+const RC_IOS_KEY = 'test_CkKEQaKegsQOVhggcijjaRuVyyD'
+const RC_ANDROID_KEY = 'test_CkKEQaKegsQOVhggcijjaRuVyyD'
 
 export const ENTITLEMENTS = {
   CREATOR: 'creator',
