@@ -33,21 +33,21 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Feed',
-          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="discover"
-        options={{
-          title: 'Discover',
-          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'compass' : 'compass-outline'} focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'flash' : 'flash-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="maps"
         options={{
-          title: 'Maps',
-          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'library' : 'library-outline'} focused={focused} />,
+          title: 'Repo',
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'git-branch' : 'git-branch-outline'} focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="discover"
+        options={{
+          title: 'Explore',
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'storefront' : 'storefront-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen

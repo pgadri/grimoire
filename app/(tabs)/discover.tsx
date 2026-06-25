@@ -1,145 +1,242 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native'
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { useFocusEffect, useRouter } from 'expo-router'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../../constants/theme'
+import type { Capture } from '../../components/CaptureCard'
 
-const TAGS = ['Launch', 'Monetization', 'Growth', 'Design', 'AI', 'Expo', 'React Native', 'Marketing']
+const CAPTURES_KEY = 'grimoire:captures'
 
-const TRENDING = [
-  { id: '1', title: 'The complete vibe coder launch playbook', author: '@buildmaster', stars: 1204, emoji: '🚀' },
-  { id: '2', title: 'Pricing your app: from $0 to $29/month', author: '@saasfounder', stars: 891, emoji: '💰' },
-  { id: '3', title: 'React Native vs Expo: which to pick in 2026', author: '@mobilepro', stars: 654, emoji: '📱' },
-  { id: '4', title: 'How to get featured on the App Store', author: '@appleinsider', stars: 543, emoji: '⭐' },
-  { id: '5', title: 'Building with AI: the vibe coder toolkit', author: '@aibuilder', stars: 432, emoji: '🤖' },
-]
+const CATEGORIES = ['All', 'Technical', 'Marketing', 'Launch', 'Pricing', 'Founder', 'Product']
 
-export default function DiscoverScreen() {
+const CATEGORY_ICON: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  Technical: 'code-slash-outline',
+  Marketing: 'megaphone-outline',
+  Launch: 'rocket-outline',
+  Pricing: 'cash-outline',
+  Founder: 'person-outline',
+  Product: 'bulb-outline',
+}
+
+const CATEGORY_COLOR: Record<string, string> = {
+  technical: '#2A6EBB',
+  marketing: '#BB5E2A',
+  launch: '#2A9E6B',
+  pricing: '#9E2A7A',
+  founder: '#2A1B5E',
+  product: '#5E7A2A',
+}
+
+export default function ExploreScreen() {
+  const router = useRouter()
+  const [captures, setCaptures] = useState<Capture[]>([])
   const [search, setSearch] = useState('')
-  const [activeTag, setActiveTag] = useState('Launch')
+  const [activeCategory, setActiveCategory] = useState('All')
+
+  useFocusEffect(useCallback(() => {
+    AsyncStorage.getItem(CAPTURES_KEY).then(raw => {
+      const all: Capture[] = raw ? JSON.parse(raw) : []
+      setCaptures(all.filter(c => c.isPublic))
+    })
+  }, []))
+
+  const filtered = captures.filter(c => {
+    const matchesSearch = !search ||
+      c.title.toLowerCase().includes(search.toLowerCase()) ||
+      c.creator.toLowerCase().includes(search.toLowerCase()) ||
+      c.preview.toLowerCase().includes(search.toLowerCase())
+    const matchesCategory = activeCategory === 'All' ||
+      c.category?.toLowerCase() === activeCategory.toLowerCase()
+    return matchesSearch && matchesCategory
+  })
+
+  const hasCaptures = captures.length > 0
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.heading}>Discover</Text>
-        <Text style={styles.sub}>Knowledge maps from the community</Text>
+        <Text style={styles.heading}>Explore</Text>
+        <Text style={styles.sub}>Your public knowledge library</Text>
       </View>
 
       <View style={styles.searchRow}>
         <Ionicons name="search-outline" size={16} color={Colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search maps, topics, creators..."
+          placeholder="Search captures..."
           placeholderTextColor={Colors.textSecondary}
           value={search}
           onChangeText={setSearch}
         />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={16} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tagScroll}
-        style={styles.tagRow}
+        contentContainerStyle={styles.filterScroll}
+        style={styles.filterRow}
       >
-        {TAGS.map(tag => (
+        {CATEGORIES.map(cat => (
           <TouchableOpacity
-            key={tag}
-            style={[styles.tag, activeTag === tag && styles.tagActive]}
-            onPress={() => setActiveTag(tag)}
+            key={cat}
+            style={[styles.filterChip, activeCategory === cat && styles.filterChipActive]}
+            onPress={() => setActiveCategory(cat)}
           >
-            <Text style={[styles.tagText, activeTag === tag && styles.tagTextActive]}>{tag}</Text>
+            {cat !== 'All' && CATEGORY_ICON[cat] && (
+              <Ionicons
+                name={CATEGORY_ICON[cat]}
+                size={12}
+                color={activeCategory === cat ? Colors.card : Colors.textSecondary}
+              />
+            )}
+            <Text style={[styles.filterChipText, activeCategory === cat && styles.filterChipTextActive]}>
+              {cat}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionLabel}>TRENDING MAPS</Text>
-
-        {TRENDING.map((item, i) => (
-          <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.85}>
-            <View style={styles.rank}>
-              <Text style={styles.rankNum}>{i + 1}</Text>
-            </View>
-            <Text style={styles.emoji}>{item.emoji}</Text>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-              <View style={styles.cardMeta}>
-                <Text style={styles.author}>{item.author}</Text>
-                <View style={styles.starRow}>
-                  <Ionicons name="star" size={12} color={Colors.gold} />
-                  <Text style={styles.stars}>{item.stars.toLocaleString()}</Text>
-                </View>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
-          </TouchableOpacity>
-        ))}
+        {!hasCaptures ? (
+          <View style={styles.empty}>
+            <Ionicons name="globe-outline" size={48} color={Colors.textTertiary} />
+            <Text style={styles.emptyTitle}>Nothing public yet</Text>
+            <Text style={styles.emptyBody}>
+              Open any capture and tap the{' '}
+              <Ionicons name="globe-outline" size={13} color={Colors.textSecondary} />
+              {' '}icon to make it public. It'll appear here.
+            </Text>
+          </View>
+        ) : filtered.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>No captures match</Text>
+            <Text style={styles.emptyBody}>Try a different search or category.</Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.sectionLabel}>{filtered.length} PUBLIC CAPTURE{filtered.length !== 1 ? 'S' : ''}</Text>
+            {filtered.map(capture => (
+              <ExploreCard
+                key={capture.id}
+                capture={capture}
+                onPress={() => router.push(`/capture/${capture.id}`)}
+              />
+            ))}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
 }
 
+function ExploreCard({ capture, onPress }: { capture: Capture; onPress: () => void }) {
+  const catColor = CATEGORY_COLOR[capture.category ?? ''] ?? Colors.accent
+  const bullets = capture.preview
+    .split('\n')
+    .map(b => b.replace(/^[•\-→]\s*/, '').trim())
+    .filter(Boolean)
+    .slice(0, 3)
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.cardTop}>
+        <View style={styles.cardMeta}>
+          <View style={styles.metaRow}>
+            <Ionicons name="play-circle-outline" size={13} color={Colors.accent} />
+            <Text style={styles.metaPlatform}>{capture.platform} · {capture.creator}</Text>
+            <Text style={styles.metaDate}>{capture.date}</Text>
+          </View>
+          {capture.category && (
+            <View style={[styles.categoryChip, { backgroundColor: catColor + '18' }]}>
+              <Text style={[styles.categoryText, { color: catColor }]}>
+                {capture.category.toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <Text style={styles.cardTitle} numberOfLines={2}>{capture.title}</Text>
+
+      {bullets.map((b, i) => (
+        <View key={i} style={styles.bulletRow}>
+          <Text style={styles.bulletDot}>·</Text>
+          <Text style={styles.bulletText} numberOfLines={2}>{b}</Text>
+        </View>
+      ))}
+
+      <View style={styles.cardFooter}>
+        <View style={styles.stat}>
+          <Ionicons name="star" size={12} color={Colors.gold} />
+          <Text style={styles.statText}>{capture.stars}</Text>
+        </View>
+        <Text style={styles.viewLink}>View capture →</Text>
+      </View>
+    </TouchableOpacity>
+  )
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
-  },
-  heading: { fontSize: 24, fontWeight: '700', color: Colors.text },
+  header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
+  heading: { fontSize: 28, fontWeight: '800', color: Colors.text },
   sub: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
   searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.card,
-    marginHorizontal: Spacing.lg,
-    marginVertical: Spacing.md,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
-    gap: Spacing.sm,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
+    backgroundColor: Colors.card, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md, paddingVertical: 10,
     ...Shadow.card,
   },
   searchInput: { flex: 1, fontSize: 14, color: Colors.text },
-  tagRow: { maxHeight: 48 },
-  tagScroll: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
-    paddingBottom: 4,
-  },
-  tag: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
+  filterRow: { marginVertical: Spacing.sm, height: 48 },
+  filterScroll: { paddingHorizontal: Spacing.lg, gap: 8, paddingVertical: 6 },
+  filterChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.border,
     backgroundColor: Colors.card,
-    ...Shadow.card,
   },
-  tagActive: { backgroundColor: Colors.primary },
-  tagText: { ...Typography.caption, color: Colors.textSecondary, fontWeight: '500' },
-  tagTextActive: { color: Colors.card, fontWeight: '600' },
-  scroll: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: 40 },
+  filterChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  filterChipTextActive: { color: Colors.card },
+  scroll: { padding: Spacing.lg, paddingBottom: 40 },
   sectionLabel: { ...Typography.sectionLabel, color: Colors.sectionLabel, marginBottom: Spacing.md },
+  empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.md, paddingHorizontal: Spacing.xl },
+  emptyTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  emptyBody: { ...Typography.cardBody, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.card,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-    gap: Spacing.md,
-    ...Shadow.card,
+    backgroundColor: Colors.card, borderRadius: Radius.lg,
+    padding: Spacing.lg, marginBottom: Spacing.md, ...Shadow.card,
   },
-  rank: {
-    width: 24,
-    alignItems: 'center',
+  cardTop: { marginBottom: Spacing.xs },
+  cardMeta: { gap: 4 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metaPlatform: { ...Typography.caption, color: Colors.textSecondary, flex: 1 },
+  metaDate: { ...Typography.caption, color: Colors.textTertiary },
+  categoryChip: {
+    alignSelf: 'flex-start', borderRadius: Radius.full,
+    paddingHorizontal: 8, paddingVertical: 3,
   },
-  rankNum: { fontSize: 13, fontWeight: '700', color: Colors.textTertiary },
-  emoji: { fontSize: 24 },
-  cardContent: { flex: 1 },
-  cardTitle: { ...Typography.cardBody, color: Colors.text, fontWeight: '600', marginBottom: 4 },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  author: { ...Typography.caption, color: Colors.textSecondary },
-  starRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  stars: { ...Typography.caption, color: Colors.textSecondary },
+  categoryText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.8 },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm, lineHeight: 22 },
+  bulletRow: { flexDirection: 'row', gap: 6, marginBottom: 4 },
+  bulletDot: { color: Colors.accent, fontSize: 14, fontWeight: '700', lineHeight: 20 },
+  bulletText: { ...Typography.caption, color: Colors.textSecondary, flex: 1, lineHeight: 20 },
+  cardFooter: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border,
+  },
+  stat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statText: { ...Typography.caption, color: Colors.textSecondary },
+  viewLink: { ...Typography.caption, color: Colors.primary, fontWeight: '600' },
 })

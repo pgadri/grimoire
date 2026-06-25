@@ -1,8 +1,25 @@
-import { Stack } from 'expo-router'
+import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
+import { useEffect, useState } from 'react'
 import { Colors } from '../constants/theme'
+import { getUser } from '../lib/auth'
+import { initPurchases } from '../lib/purchases'
 
 export default function RootLayout() {
+  const router = useRouter()
+  const segments = useSegments()
+  const [checked, setChecked] = useState(false)
+
+  useEffect(() => {
+    getUser().then(user => {
+      initPurchases(user?.id)
+      setChecked(true)
+      const inAuth = segments[0] === '(auth)'
+      if (!user && !inAuth) router.replace('/(auth)')
+      else if (user && inAuth) router.replace('/(tabs)')
+    })
+  }, [])
+
   return (
     <>
       <StatusBar style="dark" backgroundColor={Colors.background} />

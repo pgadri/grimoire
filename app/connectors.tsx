@@ -19,15 +19,15 @@ type Connector = {
 const INITIAL_CONNECTORS: Connector[] = [
   {
     id: 'openai', name: 'OpenAI', description: 'Whisper transcription + GPT-4 organization',
-    icon: 'flash', color: '#10A37F', connected: true, autoPush: false, category: 'ai',
+    icon: 'flash', color: '#10A37F', connected: false, autoPush: false, category: 'ai',
   },
   {
     id: 'anthropic', name: 'Claude (Anthropic)', description: 'Use Claude for knowledge organization',
     icon: 'sparkles', color: '#CC785C', connected: false, autoPush: false, category: 'ai',
   },
   {
-    id: 'groq', name: 'Groq', description: 'Fast Whisper transcription (free tier)',
-    icon: 'flash-outline', color: '#F55036', connected: false, autoPush: false, category: 'ai',
+    id: 'groq', name: 'Groq', description: 'Fast transcription & AI summaries (active)',
+    icon: 'flash-outline', color: '#F55036', connected: true, autoPush: false, category: 'ai',
   },
   {
     id: 'github', name: 'GitHub', description: 'Push captures to your repository as markdown',

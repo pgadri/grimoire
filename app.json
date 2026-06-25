@@ -5,11 +5,27 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#EDE9E3"
+    },
     "userInterfaceStyle": "light",
     "scheme": "grimoire",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.pgadri.grimoire"
+      "bundleIdentifier": "com.pgadri.grimoire",
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": []
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,6 +43,7 @@
       "expo-font",
       "expo-camera",
       "expo-image-picker",
+      "react-native-purchases",
       [
         "expo-notifications",
         {
