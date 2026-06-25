@@ -13,6 +13,7 @@ import { AddToMapSheet } from '../../components/AddToMapSheet'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { getProjectProfile, ProjectProfile } from '../../lib/project'
 import { matchRisks, readinessScore } from '../../lib/projectRisk'
+import { SEED_CAPTURES } from '../../lib/seeds'
 
 const RESOLVED_KEY = 'grimoire:resolvedRisks'
 const CAPTURES_KEY = 'grimoire:captures'
@@ -159,7 +160,8 @@ export default function FeedScreen() {
           const saved = JSON.parse(raw)
           if (active && Array.isArray(saved) && saved.length > 0) setCaptures(saved)
         } else {
-          await AsyncStorage.setItem(CAPTURES_KEY, JSON.stringify(MOCK_CAPTURES))
+          await AsyncStorage.setItem(CAPTURES_KEY, JSON.stringify(SEED_CAPTURES))
+          if (active) setCaptures(SEED_CAPTURES)
         }
       } catch {}
 
