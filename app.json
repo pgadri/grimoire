@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Grimoire",
+    "slug": "grimoire",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "grimoire",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.pgadri.grimoire"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#EDE9E3",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      },
+      "package": "com.pgadri.grimoire"
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-image",
+      "expo-camera",
+      "expo-image-picker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2A1B5E"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
