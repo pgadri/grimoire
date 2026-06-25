@@ -43,7 +43,6 @@
       "expo-font",
       "expo-camera",
       "expo-image-picker",
-      "react-native-purchases",
       [
         "expo-notifications",
         {
