@@ -268,27 +268,68 @@ export default function FeedScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Good morning,</Text>
-          <Text style={styles.name}>{userName || 'Builder'}. <Text style={styles.sparkle}>✦</Text></Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.greeting}>{userName || 'Builder'} ✦</Text>
+          <Text style={styles.headerSub}>
+            {profile ? `${profile.name}` : 'No project connected'}
+          </Text>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/scan')}>
-            <Ionicons name="scan-outline" size={20} color={Colors.text} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/chat')}>
             <Ionicons name="chatbubble-ellipses-outline" size={20} color={Colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.captureBtn} onPress={() => setShowCapture(true)}>
+            <Ionicons name="add" size={20} color={Colors.card} />
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* Launch confidence card — always visible */}
+      {!profile ? (
+        <TouchableOpacity
+          style={styles.launchCard}
+          onPress={() => router.push('/onboarding')}
+          activeOpacity={0.9}
+        >
+          <View style={styles.launchCardLeft}>
+            <Text style={styles.launchCardLabel}>LAUNCH CONFIDENCE</Text>
+            <Text style={styles.launchCardTitle}>Connect your project</Text>
+            <Text style={styles.launchCardSub}>Get real-time launch risk analysis for your stack</Text>
+          </View>
+          <View style={styles.launchScoreCircle}>
+            <Text style={styles.launchScoreNum}>?</Text>
+          </View>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={[styles.launchCard, openRisks > 0 ? styles.launchCardRisk : styles.launchCardGood]}
+          onPress={() => router.push('/readiness')}
+          activeOpacity={0.9}
+        >
+          <View style={styles.launchCardLeft}>
+            <Text style={styles.launchCardLabel}>LAUNCH CONFIDENCE</Text>
+            <Text style={styles.launchCardTitle}>
+              {openRisks > 0 ? `${openRisks} risk${openRisks !== 1 ? 's' : ''} blocking launch` : 'Ready to ship'}
+            </Text>
+            <Text style={styles.launchCardSub}>
+              {profile.name} · tap to see {openRisks > 0 ? 'fixes' : 'full report'}
+            </Text>
+          </View>
+          <View style={[styles.launchScoreCircle, { borderColor: score >= 80 ? Colors.success : score >= 50 ? Colors.gold : Colors.error }]}>
+            <Text style={[styles.launchScoreNum, { color: score >= 80 ? Colors.success : score >= 50 ? Colors.gold : Colors.error }]}>{score}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Search */}
       <View style={styles.searchRow}>
         <View style={styles.searchBox}>
           <Ionicons name="search-outline" size={16} color={Colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search your grimoire..."
+            placeholder="Search your knowledge..."
             placeholderTextColor={Colors.textSecondary}
             value={search}
             onChangeText={setSearch}
@@ -299,54 +340,10 @@ export default function FeedScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity style={styles.captureBtn} onPress={() => setShowCapture(true)}>
-          <Ionicons name="add" size={22} color={Colors.card} />
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/scan')}>
+          <Ionicons name="scan-outline" size={20} color={Colors.text} />
         </TouchableOpacity>
       </View>
-
-      {!profile ? (
-        <TouchableOpacity
-          style={styles.setupBanner}
-          onPress={() => router.push('/onboarding')}
-          activeOpacity={0.9}
-        >
-          <View style={styles.setupIcon}>
-            <Ionicons name="shield-checkmark" size={20} color={Colors.card} />
-          </View>
-          <View style={styles.bannerText}>
-            <Text style={styles.setupTitle}>What are you building?</Text>
-            <Text style={styles.setupSub}>Get warned about launch risks before they hurt you</Text>
-          </View>
-          <Ionicons name="arrow-forward" size={18} color={Colors.primary} />
-        </TouchableOpacity>
-      ) : openRisks > 0 ? (
-        <TouchableOpacity
-          style={styles.riskBanner}
-          onPress={() => router.push('/readiness')}
-          activeOpacity={0.9}
-        >
-          <View style={[styles.scoreChip, { borderColor: score >= 50 ? Colors.gold : Colors.error }]}>
-            <Text style={[styles.scoreChipNum, { color: score >= 50 ? Colors.gold : Colors.error }]}>{score}</Text>
-          </View>
-          <View style={styles.bannerText}>
-            <Text style={styles.riskTitle}>
-              {openRisks} launch risk{openRisks !== 1 ? 's' : ''} to review
-            </Text>
-            <Text style={styles.riskSub}>{profile.name} · tap to see fixes</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          style={styles.clearBanner}
-          onPress={() => router.push('/readiness')}
-          activeOpacity={0.9}
-        >
-          <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
-          <Text style={styles.clearText}>{profile.name} is launch-ready · no open risks</Text>
-          <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
-        </TouchableOpacity>
-      )}
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -432,17 +429,40 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.xs,
   },
-  greeting: { fontSize: 14, color: Colors.textSecondary, fontWeight: '400' },
-  name: { fontSize: 24, fontWeight: '700', color: Colors.text },
-  sparkle: { color: Colors.accent },
+  headerLeft: { flex: 1 },
+  greeting: { fontSize: 22, fontWeight: '800', color: Colors.text },
+  headerSub: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500', marginTop: 1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   iconBtn: {
     width: 36, height: 36, borderRadius: Radius.full,
     backgroundColor: Colors.card, alignItems: 'center', justifyContent: 'center',
     ...Shadow.card,
   },
+  captureBtn: {
+    width: 36, height: 36, borderRadius: Radius.full,
+    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+    ...Shadow.card,
+  },
+  launchCard: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: Spacing.lg, marginTop: Spacing.sm, marginBottom: Spacing.xs,
+    backgroundColor: Colors.primary, borderRadius: Radius.xl,
+    padding: Spacing.lg, ...Shadow.card,
+  },
+  launchCardRisk: { backgroundColor: Colors.primary },
+  launchCardGood: { backgroundColor: '#1A4D2E' },
+  launchCardLeft: { flex: 1 },
+  launchCardLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.6)', letterSpacing: 1.2, marginBottom: 4 },
+  launchCardTitle: { fontSize: 17, fontWeight: '800', color: '#fff', marginBottom: 3 },
+  launchCardSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
+  launchScoreCircle: {
+    width: 56, height: 56, borderRadius: 28, borderWidth: 3, borderColor: '#fff',
+    alignItems: 'center', justifyContent: 'center', marginLeft: Spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  launchScoreNum: { fontSize: 20, fontWeight: '800', color: '#fff' },
   searchRow: {
     flexDirection: 'row', paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm, gap: Spacing.sm, alignItems: 'center',
@@ -454,42 +474,6 @@ const styles = StyleSheet.create({
     gap: Spacing.sm, ...Shadow.card,
   },
   searchInput: { flex: 1, fontSize: 14, color: Colors.text },
-  captureBtn: {
-    width: 44, height: 44, borderRadius: Radius.full,
-    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
-    ...Shadow.card,
-  },
-  setupBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    marginHorizontal: Spacing.lg, marginTop: Spacing.xs, marginBottom: Spacing.sm,
-    backgroundColor: Colors.card, borderRadius: Radius.lg, padding: Spacing.md,
-    borderWidth: 1.5, borderColor: Colors.primary, ...Shadow.card,
-  },
-  setupIcon: {
-    width: 40, height: 40, borderRadius: Radius.md, backgroundColor: Colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  bannerText: { flex: 1 },
-  setupTitle: { ...Typography.cardBody, color: Colors.text, fontWeight: '700' },
-  setupSub: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
-  riskBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    marginHorizontal: Spacing.lg, marginTop: Spacing.xs, marginBottom: Spacing.sm,
-    backgroundColor: Colors.card, borderRadius: Radius.lg, padding: Spacing.md, ...Shadow.card,
-  },
-  scoreChip: {
-    width: 40, height: 40, borderRadius: 20, borderWidth: 3,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  scoreChipNum: { fontSize: 15, fontWeight: '700' },
-  riskTitle: { ...Typography.cardBody, color: Colors.text, fontWeight: '700' },
-  riskSub: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
-  clearBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    marginHorizontal: Spacing.lg, marginTop: Spacing.xs, marginBottom: Spacing.sm,
-    backgroundColor: Colors.success + '12', borderRadius: Radius.lg, padding: Spacing.md,
-  },
-  clearText: { ...Typography.caption, color: Colors.text, fontWeight: '600', flex: 1 },
   scroll: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl, paddingTop: Spacing.sm },
   groupHeader: {
     flexDirection: 'row', alignItems: 'center',

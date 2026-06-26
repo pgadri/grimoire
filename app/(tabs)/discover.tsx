@@ -59,8 +59,14 @@ export default function ExploreScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.heading}>Explore</Text>
-        <Text style={styles.sub}>Your public knowledge library</Text>
+        <View>
+          <Text style={styles.heading}>Community</Text>
+          <Text style={styles.sub}>What builders are learning right now</Text>
+        </View>
+        <TouchableOpacity style={styles.shareBtn} onPress={() => router.push('/' as any)}>
+          <Ionicons name="add" size={18} color={Colors.primary} />
+          <Text style={styles.shareBtnText}>Share</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchRow}>
@@ -108,13 +114,21 @@ export default function ExploreScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {!hasCaptures ? (
           <View style={styles.empty}>
-            <Ionicons name="globe-outline" size={48} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>Nothing public yet</Text>
-            <Text style={styles.emptyBody}>
-              Open any capture and tap the{' '}
-              <Ionicons name="globe-outline" size={13} color={Colors.textSecondary} />
-              {' '}icon to make it public. It'll appear here.
-            </Text>
+            <View style={styles.emptyHero}>
+              <Text style={styles.emptyHeroEmoji}>🏗️</Text>
+              <Text style={styles.emptyTitle}>Be the first to share</Text>
+              <Text style={styles.emptyBody}>
+                Builders share what they're learning here. Open any capture, tap{' '}
+                <Ionicons name="globe-outline" size={13} color={Colors.textSecondary} />
+                {' '}to make it public — and it shows up for everyone building right now.
+              </Text>
+            </View>
+            <View style={styles.communityHint}>
+              <Ionicons name="people-outline" size={16} color={Colors.primary} />
+              <Text style={styles.communityHintText}>
+                The best apps get built faster when builders share what they know.
+              </Text>
+            </View>
           </View>
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
@@ -123,7 +137,20 @@ export default function ExploreScreen() {
           </View>
         ) : (
           <>
-            <Text style={styles.sectionLabel}>{filtered.length} PUBLIC CAPTURE{filtered.length !== 1 ? 'S' : ''}</Text>
+            {activeCategory === 'All' && !search && (
+              <>
+                <Text style={styles.sectionLabel}>🔥 TRENDING</Text>
+                {[...filtered].sort((a, b) => b.stars - a.stars).slice(0, 2).map(capture => (
+                  <ExploreCard
+                    key={`t-${capture.id}`}
+                    capture={capture}
+                    onPress={() => router.push(`/capture/${capture.id}`)}
+                    featured
+                  />
+                ))}
+                <Text style={styles.sectionLabel}>ALL CAPTURES</Text>
+              </>
+            )}
             {filtered.map(capture => (
               <ExploreCard
                 key={capture.id}
@@ -138,7 +165,7 @@ export default function ExploreScreen() {
   )
 }
 
-function ExploreCard({ capture, onPress }: { capture: Capture; onPress: () => void }) {
+function ExploreCard({ capture, onPress, featured }: { capture: Capture; onPress: () => void; featured?: boolean }) {
   const catColor = CATEGORY_COLOR[capture.category ?? ''] ?? Colors.accent
   const bullets = capture.preview
     .split('\n')
@@ -147,7 +174,7 @@ function ExploreCard({ capture, onPress }: { capture: Capture; onPress: () => vo
     .slice(0, 3)
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[styles.card, featured && styles.cardFeatured]} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.cardTop}>
         <View style={styles.cardMeta}>
           <View style={styles.metaRow}>
@@ -187,9 +214,15 @@ function ExploreCard({ capture, onPress }: { capture: Capture; onPress: () => vo
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
+  header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heading: { fontSize: 28, fontWeight: '800', color: Colors.text },
   sub: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
+  shareBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1.5, borderColor: Colors.primary, borderRadius: Radius.full,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  shareBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
     marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
@@ -211,12 +244,24 @@ const styles = StyleSheet.create({
   filterChipTextActive: { color: Colors.card },
   scroll: { padding: Spacing.lg, paddingBottom: 40 },
   sectionLabel: { ...Typography.sectionLabel, color: Colors.sectionLabel, marginBottom: Spacing.md },
-  empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.md, paddingHorizontal: Spacing.xl },
+  empty: { alignItems: 'center', paddingTop: 40, gap: Spacing.md, paddingHorizontal: Spacing.xl },
+  emptyHero: { alignItems: 'center', gap: Spacing.sm },
+  emptyHeroEmoji: { fontSize: 48, marginBottom: Spacing.sm },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
   emptyBody: { ...Typography.cardBody, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  communityHint: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: Colors.primary + '12', borderRadius: Radius.lg,
+    padding: Spacing.md, marginTop: Spacing.md,
+  },
+  communityHintText: { ...Typography.caption, color: Colors.primary, flex: 1, lineHeight: 18, fontWeight: '600' },
   card: {
     backgroundColor: Colors.card, borderRadius: Radius.lg,
     padding: Spacing.lg, marginBottom: Spacing.md, ...Shadow.card,
+  },
+  cardFeatured: {
+    borderWidth: 1.5, borderColor: Colors.primary + '40',
+    backgroundColor: Colors.primary + '08',
   },
   cardTop: { marginBottom: Spacing.xs },
   cardMeta: { gap: 4 },

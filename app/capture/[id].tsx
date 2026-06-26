@@ -118,12 +118,12 @@ Be specific — reference my files, not generic advice.`,
   ]
 }
 
-type Tab = 'knowledge' | 'raw' | 'prompts'
+type Tab = 'prompts' | 'knowledge' | 'raw'
 
 export default function CaptureDetail() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>('knowledge')
+  const [tab, setTab] = useState<Tab>('prompts')
   const [capture, setCapture] = useState<Capture | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAddToMap, setShowAddToMap] = useState(false)
@@ -254,14 +254,14 @@ export default function CaptureDetail() {
         </View>
 
         <View style={styles.tabs}>
-          {(['knowledge', 'prompts', 'raw'] as Tab[]).map(t => (
+          {(['prompts', 'knowledge', 'raw'] as Tab[]).map(t => (
             <TouchableOpacity
               key={t}
               style={[styles.tab, tab === t && styles.tabActive]}
               onPress={() => setTab(t)}
             >
               <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-                {t === 'knowledge' ? 'Knowledge' : t === 'prompts' ? (isTechnical ? '✦ Prompts' : 'Action Plan') : 'Raw'}
+                {t === 'prompts' ? (isTechnical ? '✦ Prompts' : '✦ Action Plan') : t === 'knowledge' ? 'Knowledge' : 'Raw'}
               </Text>
             </TouchableOpacity>
           ))}
