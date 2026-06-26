@@ -11,6 +11,7 @@ import * as Clipboard from 'expo-clipboard'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../../constants/theme'
 import type { Capture } from '../../components/CaptureCard'
 import { AddToMapSheet } from '../../components/AddToMapSheet'
+import { getReactions, toggleReaction, type CaptureReaction } from '../../lib/community'
 
 const CAPTURES_KEY = 'grimoire:captures'
 
@@ -127,6 +128,7 @@ export default function CaptureDetail() {
   const [capture, setCapture] = useState<Capture | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAddToMap, setShowAddToMap] = useState(false)
+  const [reaction, setReaction] = useState<CaptureReaction>({ fire: 0, insightful: 0, myReaction: null })
 
   useFocusEffect(useCallback(() => {
     async function load() {
@@ -135,12 +137,20 @@ export default function CaptureDetail() {
         const captures: Capture[] = raw ? JSON.parse(raw) : []
         const found = captures.find(c => c.id === id)
         if (found) setCapture(found)
+        const all = await getReactions()
+        if (id && all[id]) setReaction(all[id])
       } finally {
         setLoading(false)
       }
     }
     load()
   }, [id]))
+
+  const handleReact = async (type: 'fire' | 'insightful') => {
+    if (!id) return
+    const updated = await toggleReaction(id, type)
+    setReaction(updated)
+  }
 
   const updateCapture = (changes: Partial<Capture>) => {
     if (!capture) return
@@ -251,6 +261,30 @@ export default function CaptureDetail() {
               <Text style={styles.publicText}>PUBLIC</Text>
             </View>
           )}
+          <View style={styles.reactionsInline}>
+            <TouchableOpacity
+              style={[styles.reactionBtn, reaction.myReaction === 'fire' && styles.reactionBtnActive]}
+              onPress={() => handleReact('fire')}
+            >
+              <Text style={styles.reactionEmoji}>🔥</Text>
+              {reaction.fire > 0 && (
+                <Text style={[styles.reactionCount, reaction.myReaction === 'fire' && styles.reactionCountActive]}>
+                  {reaction.fire}
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.reactionBtn, reaction.myReaction === 'insightful' && styles.reactionBtnActive]}
+              onPress={() => handleReact('insightful')}
+            >
+              <Text style={styles.reactionEmoji}>💡</Text>
+              {reaction.insightful > 0 && (
+                <Text style={[styles.reactionCount, reaction.myReaction === 'insightful' && styles.reactionCountActive]}>
+                  {reaction.insightful}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.tabs}>
@@ -345,6 +379,21 @@ export default function CaptureDetail() {
         {tab === 'raw' && (
           <RawTab capture={capture} />
         )}
+
+        <TouchableOpacity
+          style={styles.stuckBtn}
+          onPress={() => router.push({
+            pathname: '/new-thread',
+            params: { captureId: capture.id, captureTitle: capture.title },
+          } as any)}
+        >
+          <Ionicons name="help-circle-outline" size={17} color={Colors.accent} />
+          <View style={styles.stuckBtnText}>
+            <Text style={styles.stuckBtnTitle}>Stuck on something from this?</Text>
+            <Text style={styles.stuckBtnSub}>Post a thread — builders answer</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={15} color={Colors.textTertiary} />
+        </TouchableOpacity>
       </ScrollView>
 
       <AddToMapSheet
@@ -527,7 +576,7 @@ const styles = StyleSheet.create({
     lineHeight: 30, marginBottom: Spacing.md,
   },
   statsRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.xl,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xl, flexWrap: 'wrap',
   },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   statText: { ...Typography.caption, color: Colors.textSecondary },
@@ -536,6 +585,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.full,
   },
   publicText: { fontSize: 9, fontWeight: '700', color: Colors.primary, letterSpacing: 0.8 },
+  reactionsInline: { flexDirection: 'row', gap: 6, marginLeft: 'auto' as any },
+  reactionBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  reactionBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '12' },
+  reactionEmoji: { fontSize: 13 },
+  reactionCount: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
+  reactionCountActive: { color: Colors.primary },
+  stuckBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.card, borderRadius: Radius.lg,
+    padding: Spacing.md, marginTop: Spacing.xl, ...Shadow.card,
+    borderWidth: 1, borderColor: Colors.accent + '25',
+  },
+  stuckBtnText: { flex: 1 },
+  stuckBtnTitle: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  stuckBtnSub: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
   tabs: {
     flexDirection: 'row', backgroundColor: Colors.card,
     borderRadius: Radius.full, padding: 4, marginBottom: Spacing.xl, ...Shadow.card,

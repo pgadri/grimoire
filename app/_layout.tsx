@@ -35,10 +35,19 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="connectors"
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="new-thread"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="new-milestone"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="thread/[id]"
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
       </Stack>
     </>
