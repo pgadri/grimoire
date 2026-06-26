@@ -4,6 +4,8 @@ export const COMMUNITY_KEYS = {
   REACTIONS: 'grimoire:reactions',
   THREADS: 'grimoire:threads',
   MILESTONES: 'grimoire:milestones',
+  PRODUCTS: 'grimoire:products',
+  PRODUCT_REVIEWS: 'grimoire:product_reviews',
 }
 
 export type ReactionType = 'fire' | 'insightful'
@@ -167,6 +169,107 @@ export async function toggleMilestoneReaction(
     r.myReaction = type
   }
   await AsyncStorage.setItem(COMMUNITY_KEYS.MILESTONES, JSON.stringify(milestones))
+}
+
+// ─── Products ────────────────────────────────────────────────────────────────
+
+export type ProductStage = 'idea' | 'beta' | 'live' | 'sunset'
+export type ReviewType = 'feedback' | 'review' | 'bug' | 'tester'
+
+export type Product = {
+  id: string
+  userId?: string
+  name: string
+  tagline: string
+  description: string
+  url?: string
+  category: string
+  stage: ProductStage
+  logoEmoji: string
+  tags: string[]
+  lookingFor: ReviewType[]
+  upvotes: number
+  myUpvote: boolean
+  authorName: string
+  createdAt: string
+}
+
+export type ProductReview = {
+  id: string
+  productId: string
+  type: ReviewType
+  rating?: number
+  body: string
+  authorName: string
+  createdAt: string
+}
+
+export const REVIEW_TYPE_LABEL: Record<ReviewType, string> = {
+  feedback: '💬 Feedback',
+  review:   '⭐ Review',
+  bug:      '🐛 Bug report',
+  tester:   '🧪 Want to test',
+}
+
+export const STAGE_LABEL: Record<ProductStage, string> = {
+  idea:   '💡 Idea',
+  beta:   '🧪 Beta',
+  live:   '✅ Live',
+  sunset: '🌅 Sunset',
+}
+
+export async function getProducts(): Promise<Product[]> {
+  const raw = await AsyncStorage.getItem(COMMUNITY_KEYS.PRODUCTS)
+  return raw ? JSON.parse(raw) : []
+}
+
+export async function createProduct(p: Omit<Product, 'id' | 'createdAt' | 'upvotes' | 'myUpvote'>): Promise<Product> {
+  const products = await getProducts()
+  const newP: Product = {
+    ...p,
+    id: `product_${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    upvotes: 0,
+    myUpvote: false,
+  }
+  products.unshift(newP)
+  await AsyncStorage.setItem(COMMUNITY_KEYS.PRODUCTS, JSON.stringify(products))
+  return newP
+}
+
+export async function toggleProductUpvote(productId: string): Promise<void> {
+  const products = await getProducts()
+  const idx = products.findIndex(p => p.id === productId)
+  if (idx === -1) return
+  if (products[idx].myUpvote) {
+    products[idx].upvotes = Math.max(0, products[idx].upvotes - 1)
+    products[idx].myUpvote = false
+  } else {
+    products[idx].upvotes++
+    products[idx].myUpvote = true
+  }
+  await AsyncStorage.setItem(COMMUNITY_KEYS.PRODUCTS, JSON.stringify(products))
+}
+
+export async function getProductReviews(productId: string): Promise<ProductReview[]> {
+  const raw = await AsyncStorage.getItem(COMMUNITY_KEYS.PRODUCT_REVIEWS)
+  const all: Record<string, ProductReview[]> = raw ? JSON.parse(raw) : {}
+  return all[productId] ?? []
+}
+
+export async function addProductReview(
+  review: Omit<ProductReview, 'id' | 'createdAt'>,
+): Promise<void> {
+  const raw = await AsyncStorage.getItem(COMMUNITY_KEYS.PRODUCT_REVIEWS)
+  const all: Record<string, ProductReview[]> = raw ? JSON.parse(raw) : {}
+  const list = all[review.productId] ?? []
+  list.unshift({
+    ...review,
+    id: `review_${Date.now()}`,
+    createdAt: new Date().toISOString(),
+  })
+  all[review.productId] = list
+  await AsyncStorage.setItem(COMMUNITY_KEYS.PRODUCT_REVIEWS, JSON.stringify(all))
 }
 
 // ─── Utils ───────────────────────────────────────────────────────────────────

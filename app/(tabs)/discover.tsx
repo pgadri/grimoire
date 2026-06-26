@@ -9,10 +9,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../../constants/theme'
 import type { Capture } from '../../components/CaptureCard'
 import {
-  getReactions, toggleReaction, getThreads, getMilestones,
-  toggleMilestoneReaction, formatRelTime, MILESTONE_LABELS,
-  type CaptureReaction, type StuckThread, type Milestone,
+  getReactions, toggleReaction, getThreads, getProducts, toggleProductUpvote,
+  formatRelTime, STAGE_LABEL, REVIEW_TYPE_LABEL,
+  type CaptureReaction, type StuckThread, type Product,
 } from '../../lib/community'
+import { awardPoints } from '../../lib/reputation'
 
 const CAPTURES_KEY = 'grimoire:captures'
 
@@ -44,7 +45,7 @@ export default function ExploreScreen() {
   const [captures, setCaptures] = useState<Capture[]>([])
   const [reactions, setReactions] = useState<Record<string, CaptureReaction>>({})
   const [threads, setThreads] = useState<StuckThread[]>([])
-  const [milestones, setMilestones] = useState<Milestone[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
 
@@ -55,17 +56,19 @@ export default function ExploreScreen() {
     })
     getReactions().then(setReactions)
     getThreads().then(setThreads)
-    getMilestones().then(setMilestones)
+    getProducts().then(setProducts)
   }, []))
 
   const handleReact = async (captureId: string, type: 'fire' | 'insightful') => {
     const updated = await toggleReaction(captureId, type)
+    if (!updated.myReaction) return
     setReactions(prev => ({ ...prev, [captureId]: updated }))
+    await awardPoints('reaction_received', 'Reaction on your capture')
   }
 
-  const handleMilestoneReact = async (milestoneId: string, type: 'fire' | 'heart') => {
-    await toggleMilestoneReaction(milestoneId, type)
-    getMilestones().then(setMilestones)
+  const handleProductUpvote = async (productId: string) => {
+    await toggleProductUpvote(productId)
+    getProducts().then(setProducts)
   }
 
   const filtered = captures.filter(c => {
@@ -80,15 +83,15 @@ export default function ExploreScreen() {
 
   const hasCaptures = captures.length > 0
 
-  const actionLabel = communityTab === 'threads' ? 'Ask' : communityTab === 'launches' ? 'Post' : 'Share'
+  const actionLabel = communityTab === 'threads' ? 'Ask' : communityTab === 'launches' ? 'Launch' : 'Share'
   const actionIcon: React.ComponentProps<typeof Ionicons>['name'] = communityTab === 'threads'
     ? 'help-circle-outline'
     : communityTab === 'launches'
-    ? 'flag-outline'
+    ? 'rocket-outline'
     : 'add'
   const handleAction = () => {
     if (communityTab === 'threads') router.push('/new-thread' as any)
-    else if (communityTab === 'launches') router.push('/new-milestone' as any)
+    else if (communityTab === 'launches') router.push('/new-launch' as any)
     else router.push('/' as any)
   }
 
@@ -271,25 +274,40 @@ export default function ExploreScreen() {
 
       {communityTab === 'launches' && (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {milestones.length === 0 ? (
+          <View style={styles.launchHeader}>
+            <Text style={styles.launchHeaderTitle}>Builder Launches</Text>
+            <Text style={styles.launchHeaderSub}>
+              Ship your product · get real feedback · find testers
+            </Text>
+          </View>
+          {products.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyHeroEmoji}>🎯</Text>
-              <Text style={styles.emptyTitle}>No milestones yet</Text>
+              <Text style={styles.emptyHeroEmoji}>🚀</Text>
+              <Text style={styles.emptyTitle}>No launches yet</Text>
               <Text style={styles.emptyBody}>
-                Hit a milestone? Ship it here. Every post is proof that building works.
+                Built something? Submit it here. The community gives feedback, reports bugs, and signs up to test.
               </Text>
-              <TouchableOpacity style={styles.emptyAction} onPress={() => router.push('/new-milestone' as any)}>
-                <Text style={styles.emptyActionText}>Post your milestone</Text>
+              <TouchableOpacity style={styles.emptyAction} onPress={() => router.push('/new-launch' as any)}>
+                <Text style={styles.emptyActionText}>Submit your launch</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            milestones.map(m => (
-              <MilestoneCard
-                key={m.id}
-                milestone={m}
-                onReact={handleMilestoneReact}
-              />
-            ))
+            <>
+              {products.map(p => (
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  onPress={() => router.push(`/launch/${p.id}` as any)}
+                  onUpvote={() => handleProductUpvote(p.id)}
+                />
+              ))}
+              <View style={styles.launchFooter}>
+                <TouchableOpacity style={styles.launchFooterBtn} onPress={() => router.push('/new-launch' as any)}>
+                  <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
+                  <Text style={styles.launchFooterBtnText}>Submit your launch</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           )}
         </ScrollView>
       )}
@@ -413,52 +431,57 @@ function ThreadCard({ thread, onPress }: { thread: StuckThread; onPress: () => v
   )
 }
 
-function MilestoneCard({
-  milestone, onReact,
+function ProductCard({
+  product, onPress, onUpvote,
 }: {
-  milestone: Milestone
-  onReact: (id: string, type: 'fire' | 'heart') => void
+  product: Product
+  onPress: () => void
+  onUpvote: () => void
 }) {
   return (
-    <View style={styles.milestoneCard}>
-      <View style={styles.milestoneHeader}>
-        <View style={styles.milestoneBadge}>
-          <Text style={styles.milestoneBadgeText}>{MILESTONE_LABELS[milestone.type]}</Text>
+    <TouchableOpacity style={styles.productCard} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.productCardLeft}>
+        <View style={styles.productLogo}>
+          <Text style={styles.productLogoEmoji}>{product.logoEmoji}</Text>
         </View>
-        <Text style={styles.milestoneTime}>{formatRelTime(milestone.createdAt)}</Text>
-      </View>
-      <Text style={styles.milestoneProject}>{milestone.projectName}</Text>
-      {milestone.body ? (
-        <Text style={styles.milestoneBody}>{milestone.body}</Text>
-      ) : null}
-      <View style={styles.milestoneFooter}>
-        <Text style={styles.milestoneAuthor}>{milestone.authorName}</Text>
-        <View style={styles.milestoneReactions}>
-          <TouchableOpacity
-            style={[styles.reactionBtn, milestone.reactions.myReaction === 'fire' && styles.reactionBtnActive]}
-            onPress={() => onReact(milestone.id, 'fire')}
-          >
-            <Text style={styles.reactionEmoji}>🔥</Text>
-            {milestone.reactions.fire > 0 && (
-              <Text style={[styles.reactionCount, milestone.reactions.myReaction === 'fire' && styles.reactionCountActive]}>
-                {milestone.reactions.fire}
-              </Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.reactionBtn, milestone.reactions.myReaction === 'heart' && styles.reactionBtnActive]}
-            onPress={() => onReact(milestone.id, 'heart')}
-          >
-            <Text style={styles.reactionEmoji}>❤️</Text>
-            {milestone.reactions.heart > 0 && (
-              <Text style={[styles.reactionCount, milestone.reactions.myReaction === 'heart' && styles.reactionCountActive]}>
-                {milestone.reactions.heart}
-              </Text>
-            )}
-          </TouchableOpacity>
+        <View style={styles.productInfo}>
+          <View style={styles.productNameRow}>
+            <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
+            <View style={styles.stagePill}>
+              <Text style={styles.stagePillText}>{STAGE_LABEL[product.stage]}</Text>
+            </View>
+          </View>
+          <Text style={styles.productTagline} numberOfLines={2}>{product.tagline}</Text>
+          <View style={styles.productMeta}>
+            <Text style={styles.productAuthor}>{product.authorName}</Text>
+            <Text style={styles.productDot}>·</Text>
+            <Text style={styles.productCategory}>{product.category}</Text>
+          </View>
+          {product.lookingFor.length > 0 && (
+            <View style={styles.lookingRow}>
+              {product.lookingFor.slice(0, 2).map(t => (
+                <View key={t} style={styles.lookingChip}>
+                  <Text style={styles.lookingChipText}>{REVIEW_TYPE_LABEL[t]}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </View>
-    </View>
+      <TouchableOpacity
+        style={[styles.upvoteCol, product.myUpvote && styles.upvoteColActive]}
+        onPress={e => { e.stopPropagation?.(); onUpvote() }}
+      >
+        <Ionicons
+          name="chevron-up"
+          size={16}
+          color={product.myUpvote ? '#fff' : Colors.primary}
+        />
+        <Text style={[styles.upvoteNum, product.myUpvote && styles.upvoteNumActive]}>
+          {product.upvotes}
+        </Text>
+      </TouchableOpacity>
+    </TouchableOpacity>
   )
 }
 
@@ -601,21 +624,54 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent + '12', borderRadius: Radius.full,
   },
   threadTagText: { fontSize: 10, fontWeight: '600', color: Colors.accent },
-  // Milestone cards
-  milestoneCard: {
+  // Product cards (Launches tab)
+  launchHeader: { marginBottom: Spacing.lg },
+  launchHeaderTitle: { fontSize: 17, fontWeight: '800', color: Colors.text },
+  launchHeaderSub: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
+  productCard: {
     backgroundColor: Colors.card, borderRadius: Radius.lg,
-    padding: Spacing.lg, marginBottom: Spacing.md, ...Shadow.card,
+    padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.card,
+    flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm,
   },
-  milestoneHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
-  milestoneBadge: {
-    backgroundColor: Colors.gold + '18', borderRadius: Radius.full,
-    paddingHorizontal: 10, paddingVertical: 5,
+  productCardLeft: { flex: 1, flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
+  productLogo: {
+    width: 52, height: 52, borderRadius: Radius.md,
+    backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center',
   },
-  milestoneBadgeText: { fontSize: 12, fontWeight: '700', color: Colors.gold },
-  milestoneTime: { ...Typography.caption, color: Colors.textTertiary },
-  milestoneProject: { fontSize: 17, fontWeight: '800', color: Colors.text, marginBottom: Spacing.xs },
-  milestoneBody: { ...Typography.cardBody, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.md },
-  milestoneFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.sm },
-  milestoneAuthor: { ...Typography.caption, color: Colors.textSecondary, fontWeight: '600' },
-  milestoneReactions: { flexDirection: 'row', gap: 6 },
+  productLogoEmoji: { fontSize: 30 },
+  productInfo: { flex: 1, gap: 3 },
+  productNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  productName: { fontSize: 15, fontWeight: '700', color: Colors.text, flex: 1 },
+  stagePill: {
+    backgroundColor: Colors.primary + '15', borderRadius: Radius.full,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  stagePillText: { fontSize: 9, fontWeight: '700', color: Colors.primary },
+  productTagline: { ...Typography.caption, color: Colors.textSecondary, lineHeight: 18 },
+  productMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  productAuthor: { ...Typography.caption, color: Colors.textTertiary },
+  productDot: { ...Typography.caption, color: Colors.textTertiary },
+  productCategory: { ...Typography.caption, color: Colors.accent, fontWeight: '600' },
+  lookingRow: { flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginTop: 4 },
+  lookingChip: {
+    backgroundColor: Colors.success + '12', borderRadius: Radius.full,
+    paddingHorizontal: 7, paddingVertical: 2,
+  },
+  lookingChipText: { fontSize: 9, fontWeight: '700', color: Colors.success },
+  upvoteCol: {
+    alignItems: 'center', gap: 2,
+    paddingHorizontal: 10, paddingVertical: 8,
+    borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.primary,
+    minWidth: 42,
+  },
+  upvoteColActive: { backgroundColor: Colors.primary },
+  upvoteNum: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  upvoteNumActive: { color: '#fff' },
+  launchFooter: { alignItems: 'center', paddingVertical: Spacing.md },
+  launchFooterBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 20, paddingVertical: 12,
+    borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.primary,
+  },
+  launchFooterBtnText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
 })

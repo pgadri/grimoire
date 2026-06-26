@@ -8,6 +8,7 @@ import * as Clipboard from 'expo-clipboard'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../../constants/theme'
 import { getUser, signOut, GrimoireUser } from '../../lib/auth'
 import { getActivePlan } from '../../lib/purchases'
+import { getRepState, getLevelForPoints, getNextLevel, progressToNext, canSellContent, type RepState } from '../../lib/reputation'
 import type { Capture } from '../../components/CaptureCard'
 
 const CAPTURES_KEY = 'grimoire:captures'
@@ -108,17 +109,20 @@ export default function ProfileScreen() {
   const [stats, setStats] = useState<Stats>({ captures: 0, starred: 0, repos: 0, streak: 0 })
   const [plan, setPlan] = useState<'free' | 'creator' | 'pro'>('free')
   const [publicMaps, setPublicMaps] = useState<{ id: string; title: string }[]>([])
+  const [rep, setRep] = useState<RepState>({ points: 0, events: [] })
 
   useFocusEffect(useCallback(() => {
     async function load() {
-      const [u, capturesRaw, mapsRaw, activePlan] = await Promise.all([
+      const [u, capturesRaw, mapsRaw, activePlan, repState] = await Promise.all([
         getUser(),
         AsyncStorage.getItem(CAPTURES_KEY),
         AsyncStorage.getItem(MAPS_KEY),
         getActivePlan(),
+        getRepState(),
       ])
       setUser(u)
       setPlan(activePlan)
+      setRep(repState)
       const captures: Capture[] = capturesRaw ? JSON.parse(capturesRaw) : []
       const maps: any[] = mapsRaw ? JSON.parse(mapsRaw) : []
       setStats({
@@ -239,6 +243,51 @@ export default function ProfileScreen() {
             </View>
           ))}
         </View>
+
+        {/* Reputation */}
+        {(() => {
+          const level = getLevelForPoints(rep.points)
+          const next = getNextLevel(rep.points)
+          const progress = progressToNext(rep.points)
+          return (
+            <View style={styles.repCard}>
+              <View style={styles.repHeader}>
+                <View style={styles.repLevelRow}>
+                  <Text style={styles.repEmoji}>{level.emoji}</Text>
+                  <View>
+                    <Text style={[styles.repLevelName, { color: level.color }]}>{level.name}</Text>
+                    <Text style={styles.repPoints}>{rep.points} points</Text>
+                  </View>
+                </View>
+                {canSellContent(rep.points) && (
+                  <View style={styles.sellerBadge}>
+                    <Text style={styles.sellerBadgeText}>SELLER ELIGIBLE</Text>
+                  </View>
+                )}
+              </View>
+              {next && (
+                <>
+                  <View style={styles.repProgressBar}>
+                    <View style={[styles.repProgressFill, { width: `${progress * 100}%` as any, backgroundColor: level.color }]} />
+                  </View>
+                  <Text style={styles.repProgressLabel}>
+                    {next.minPoints - rep.points} pts to {next.emoji} {next.name}
+                  </Text>
+                </>
+              )}
+              {rep.events.length > 0 && (
+                <View style={styles.repEvents}>
+                  {rep.events.slice(0, 3).map((e, i) => (
+                    <View key={i} style={styles.repEvent}>
+                      <Text style={styles.repEventLabel}>{e.label}</Text>
+                      <Text style={styles.repEventPts}>+{e.points}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )
+        })()}
 
         {/* Streak */}
         <View style={styles.streakCard}>
@@ -451,4 +500,29 @@ const styles = StyleSheet.create({
     paddingVertical: 16, marginBottom: Spacing.xl, ...Shadow.card,
   },
   signOutText: { fontSize: 15, fontWeight: '600', color: Colors.error },
+  // Reputation card
+  repCard: {
+    backgroundColor: Colors.card, borderRadius: Radius.lg,
+    padding: Spacing.lg, marginBottom: Spacing.md, ...Shadow.card,
+  },
+  repHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
+  repLevelRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  repEmoji: { fontSize: 32 },
+  repLevelName: { fontSize: 17, fontWeight: '800' },
+  repPoints: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
+  sellerBadge: {
+    backgroundColor: Colors.gold + '20', borderRadius: Radius.full,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  sellerBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.gold, letterSpacing: 0.8 },
+  repProgressBar: {
+    height: 6, backgroundColor: Colors.border, borderRadius: Radius.full,
+    overflow: 'hidden', marginBottom: 6,
+  },
+  repProgressFill: { height: '100%', borderRadius: Radius.full },
+  repProgressLabel: { ...Typography.caption, color: Colors.textSecondary, marginBottom: Spacing.md },
+  repEvents: { gap: 6, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
+  repEvent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  repEventLabel: { ...Typography.caption, color: Colors.textSecondary, flex: 1 },
+  repEventPts: { fontSize: 12, fontWeight: '700', color: Colors.success },
 })
