@@ -43,8 +43,7 @@ INSTALLATION
 Use expo install, not npm or yarn:
   expo install react-native-purchases react-native-purchases-ui
 
-Add to app.json plugins:
-  "react-native-purchases"
+Do NOT add react-native-purchases to plugins in app.json — it has no config plugin in v10.
 
 This is a native module — it requires an EAS build to test. It will not work in Expo Go.
 
@@ -61,7 +60,7 @@ Call this once in your root layout before any navigation:
   Purchases.setLogLevel(LOG_LEVEL.ERROR)
   Purchases.configure({
     apiKey: Platform.OS === 'ios' ? RC_IOS_KEY : RC_ANDROID_KEY,
-    appUserID: userId ?? null, // pass your user's ID for cross-device sync
+    appUserID: userId ?? null,
   })
 
 ENTITLEMENT CHECKING
@@ -89,7 +88,6 @@ FETCHING OFFERINGS
 
   const offerings = await Purchases.getOfferings()
   const packages = offerings.current?.availablePackages ?? []
-  // Each package has: package.product.identifier, package.localizedPriceString
 
 RESTORE PURCHASES
 
@@ -98,7 +96,7 @@ RESTORE PURCHASES
     return !!customerInfo.entitlements.active['pro']
   }
 
-CUSTOMER CENTER (support + refunds, no code needed on your end)
+CUSTOMER CENTER (support + refunds, built-in UI)
 
   import { presentCustomerCenter } from 'react-native-purchases-ui'
   await presentCustomerCenter()
@@ -112,8 +110,8 @@ DASHBOARD SETUP ORDER
 
 PRODUCTS SETUP IN APP STORE CONNECT
 - Go to App Store Connect → your app → Subscriptions
-- Create a Subscription Group (e.g. "Grimoire Plans")
-- Add products: grimoire_creator_monthly, grimoire_creator_annual, grimoire_pro_monthly, grimoire_pro_annual
+- Create a Subscription Group
+- Add products with your chosen identifiers
 - Set prices, reference name, and localization
 - Submit for review (first submission requires a screenshot)
 `,

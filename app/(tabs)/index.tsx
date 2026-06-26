@@ -14,6 +14,7 @@ import { useRouter, useFocusEffect } from 'expo-router'
 import { getProjectProfile, ProjectProfile } from '../../lib/project'
 import { matchRisks, readinessScore } from '../../lib/projectRisk'
 import { SEED_CAPTURES } from '../../lib/seeds'
+import { getUser } from '../../lib/auth'
 
 const RESOLVED_KEY = 'grimoire:resolvedRisks'
 const CAPTURES_KEY = 'grimoire:captures'
@@ -145,6 +146,7 @@ export default function FeedScreen() {
   const [openRisks, setOpenRisks] = useState(0)
   const [score, setScore] = useState(100)
   const [addToMapCapture, setAddToMapCapture] = useState<Capture | null>(null)
+  const [userName, setUserName] = useState('')
 
   const persistCaptures = async (updated: Capture[]) => {
     try { await AsyncStorage.setItem(CAPTURES_KEY, JSON.stringify(updated)) } catch {}
@@ -153,6 +155,7 @@ export default function FeedScreen() {
   useFocusEffect(useCallback(() => {
     let active = true
     const load = async () => {
+      getUser().then(u => { if (active && u) setUserName(u.name.split(' ')[0]) })
       // Load persisted captures
       try {
         const raw = await AsyncStorage.getItem(CAPTURES_KEY)
@@ -268,7 +271,7 @@ export default function FeedScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Good morning,</Text>
-          <Text style={styles.name}>Pericles. <Text style={styles.sparkle}>✦</Text></Text>
+          <Text style={styles.name}>{userName || 'Builder'}. <Text style={styles.sparkle}>✦</Text></Text>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/scan')}>

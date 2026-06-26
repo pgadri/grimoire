@@ -382,17 +382,13 @@ function CreateMapModal({ visible, onClose, onCreate }: CreateMapModalProps) {
           </View>
 
           {isPublic && (
-            <View style={[styles.toggleRow, styles.toggleRowDisabled]}>
+            <TouchableOpacity style={styles.toggleRow} onPress={() => router.push('/paywall' as any)}>
               <View style={{ flex: 1 }}>
-                <View style={styles.comingSoonRow}>
-                  <Text style={[styles.toggleLabel, styles.toggleLabelDisabled]}>Sell this map</Text>
-                  <View style={styles.comingSoonBadge}>
-                    <Text style={styles.comingSoonText}>COMING SOON</Text>
-                  </View>
-                </View>
-                <Text style={styles.toggleSub}>Monetize your knowledge — coming in a future update</Text>
+                <Text style={styles.toggleLabel}>Sell this map</Text>
+                <Text style={styles.toggleSub}>Upgrade to Creator to monetize your knowledge</Text>
               </View>
-            </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+            </TouchableOpacity>
           )}
         </View>
       </View>
