@@ -12,7 +12,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     getUser().then(user => {
-      initPurchases(user?.id)
+      initPurchases(user?.id ?? undefined)
       setChecked(true)
       const inAuth = segments[0] === '(auth)'
       if (!user && !inAuth) router.replace('/(auth)')
