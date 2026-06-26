@@ -42,7 +42,8 @@ async function saveUser(user: GrimoireUser): Promise<void> {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-export async function signUp({ name, email, password }: { name: string; email: string; password: string }): Promise<GrimoireUser> {
+// Returns email — does NOT return a token yet (need OTP verification first)
+export async function signUp({ name, email, password }: { name: string; email: string; password: string }): Promise<{ email: string }> {
   const res = await fetch(`${API_BASE}/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -50,12 +51,31 @@ export async function signUp({ name, email, password }: { name: string; email: s
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.detail ?? 'Signup failed')
+  return { email: data.email }
+}
+
+export async function verifyOTP({ email, code }: { email: string; code: string }): Promise<GrimoireUser> {
+  const res = await fetch(`${API_BASE}/auth/verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.detail ?? 'Verification failed')
   await saveToken(data.token)
   await saveUser(data.user)
   return data.user
 }
 
-export async function signIn({ email, password }: { email: string; password: string }): Promise<GrimoireUser> {
+export async function resendOTP(email: string): Promise<void> {
+  await fetch(`${API_BASE}/auth/resend-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+}
+
+export async function signIn({ email, password }: { email: string; password: string }): Promise<GrimoireUser | { unverified: true; email: string }> {
   const res = await fetch(`${API_BASE}/auth/signin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -63,6 +83,28 @@ export async function signIn({ email, password }: { email: string; password: str
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.detail ?? 'Sign in failed')
+  if (data.unverified) return { unverified: true, email: data.email }
+  await saveToken(data.token)
+  await saveUser(data.user)
+  return data.user
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+}
+
+export async function resetPassword({ email, code, newPassword }: { email: string; code: string; newPassword: string }): Promise<GrimoireUser> {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, new_password: newPassword }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.detail ?? 'Reset failed')
   await saveToken(data.token)
   await saveUser(data.user)
   return data.user

@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../../constants/theme'
-import { signUp, signIn } from '../../lib/auth'
+import { signUp, signIn, requestPasswordReset } from '../../lib/auth'
 
 type Mode = 'signin' | 'signup'
 
@@ -29,18 +29,36 @@ export default function AuthScreen() {
     setLoading(true)
     setError('')
     try {
+      const cleanEmail = email.trim().toLowerCase()
       if (mode === 'signup') {
-        if (password !== confirmPassword) {
-          setError("Passwords don't match")
-          return
-        }
-        await signUp({ name: name.trim(), email: email.trim().toLowerCase(), password })
+        if (password !== confirmPassword) { setError("Passwords don't match"); return }
+        await signUp({ name: name.trim(), email: cleanEmail, password })
+        router.replace({ pathname: '/(auth)/verify', params: { email: cleanEmail, flow: 'verify' } } as any)
       } else {
-        await signIn({ email: email.trim().toLowerCase(), password })
+        const result = await signIn({ email: cleanEmail, password })
+        if ('unverified' in result) {
+          router.replace({ pathname: '/(auth)/verify', params: { email: cleanEmail, flow: 'verify' } } as any)
+        } else {
+          router.replace('/(tabs)')
+        }
       }
-      router.replace('/(tabs)')
     } catch (e: any) {
       setError(e?.message ?? 'Something went wrong. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    const cleanEmail = email.trim().toLowerCase()
+    if (!cleanEmail.includes('@')) {
+      setError('Enter your email first, then tap Forgot password.')
+      return
+    }
+    setLoading(true)
+    try {
+      await requestPasswordReset(cleanEmail)
+      router.push({ pathname: '/(auth)/verify', params: { email: cleanEmail, flow: 'reset' } } as any)
     } finally {
       setLoading(false)
     }
@@ -164,6 +182,12 @@ export default function AuthScreen() {
             }
           </TouchableOpacity>
 
+          {mode === 'signin' && (
+            <TouchableOpacity style={styles.forgotRow} onPress={handleForgotPassword}>
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={styles.switchRow} onPress={switchMode}>
             <Text style={styles.switchText}>
               {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
@@ -224,6 +248,8 @@ const styles = StyleSheet.create({
   },
   ctaBtnDisabled: { opacity: 0.35 },
   ctaBtnText: { ...Typography.button, color: Colors.card, fontSize: 17 },
+  forgotRow: { alignItems: 'flex-end', marginBottom: Spacing.md, marginTop: -Spacing.sm },
+  forgotText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
   switchRow: { alignItems: 'center', marginBottom: Spacing.xl },
   switchText: { fontSize: 14, color: Colors.textSecondary },
   switchLink: { color: Colors.primary, fontWeight: '700' },
