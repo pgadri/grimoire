@@ -8,7 +8,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <SideNav />
       {/* On desktop, offset content to the right of the sidebar */}
       <main className="lg:ml-56 pb-20 lg:pb-8">
-        <div className="max-w-3xl mx-auto px-4 lg:px-8">
+        <div className="w-full px-4 lg:px-8">
           {children}
         </div>
       </main>

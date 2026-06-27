@@ -2,14 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Compass, ShieldAlert, User, Wrench } from 'lucide-react'
+import { GitBranch, Zap, Users, User } from 'lucide-react'
 
 const tabs = [
-  { href: '/feed',      label: 'Feed',      icon: Home },
-  { href: '/discover',  label: 'Discover',  icon: Compass },
-  { href: '/readiness', label: 'Readiness', icon: ShieldAlert },
+  { href: '/repo',      label: 'Repo',      icon: GitBranch },
+  { href: '/feed',      label: 'Feed',      icon: Zap },
+  { href: '/community', label: 'Community', icon: Users },
   { href: '/profile',   label: 'Profile',   icon: User },
-  { href: '/services',  label: 'Services',  icon: Wrench },
 ]
 
 /** Mobile-only fixed bottom bar */
