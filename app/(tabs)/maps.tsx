@@ -12,7 +12,7 @@ import { Colors, Spacing, Radius, Shadow, Typography } from '../../constants/the
 import { matchRisks, readinessScore } from '../../lib/projectRisk'
 import type { ProjectProfile, ProjectStage } from '../../lib/project'
 import { saveProjectProfile } from '../../lib/project'
-import { getLaunchDate, getDaysLeft, formatCountdown, getCurrentPhase, LAUNCH_PHASES, filterMilestones } from '../../lib/launch'
+import { getLaunchDate, getDaysLeft, formatCountdown, getCurrentPhase } from '../../lib/launch'
 import { saveScanResult, getLastScanDate, shouldAutoRescan, timeSinceScan } from '../../lib/scanHistory'
 import { getActivePlan } from '../../lib/purchases'
 
@@ -440,49 +440,23 @@ export default function RepoScreen() {
           const daysLeft = getDaysLeft(launchDate)
           const phase    = getCurrentPhase(daysLeft)
           const done     = daysLeft <= 0
-          const filtered = filterMilestones(phase.milestones, profile?.stack ?? [])
-          const todos    = filtered.slice(0, 3)
           return (
-            <View style={[styles.launchRunway, { borderLeftColor: phase.color }]}>
-              <TouchableOpacity
-                style={styles.launchRunwayHeader}
-                onPress={() => router.push('/launch-date' as any)}
-                activeOpacity={0.8}
-              >
-                <View>
-                  <Text style={styles.launchRunwayLabel}>LAUNCH RUNWAY</Text>
-                  <Text style={[styles.launchRunwayCountdown, { color: done ? Colors.success : phase.color }]}>
-                    {done ? '🚀 Launched!' : formatCountdown(daysLeft)}
-                  </Text>
-                  {!done && (
-                    <Text style={styles.launchRunwayPhase}>
-                      Phase: <Text style={{ color: phase.color, fontWeight: '700' }}>{phase.label}</Text>
-                    </Text>
-                  )}
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
-              </TouchableOpacity>
-              {!done && (
-                <View style={styles.launchRunwayMilestones}>
-                  {todos.map(m => (
-                    <View key={m.id} style={styles.launchRunwayMilestone}>
-                      <Text style={styles.launchRunwayMilestoneEmoji}>{m.emoji}</Text>
-                      <View style={styles.launchRunwayMilestoneText}>
-                        <Text style={styles.launchRunwayMilestoneTitle}>{m.title}</Text>
-                        <Text style={styles.launchRunwayMilestoneDetail} numberOfLines={1}>{m.detail}</Text>
-                      </View>
-                    </View>
-                  ))}
-                  {filtered.length > 3 && (
-                    <TouchableOpacity onPress={() => router.push('/launch-date' as any)}>
-                      <Text style={[styles.launchRunwayMore, { color: phase.color }]}>
-                        +{filtered.length - 3} more milestones →
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </View>
+            <TouchableOpacity
+              style={[styles.launchRunwayBanner, { borderColor: phase.color + '50' }]}
+              onPress={() => router.push('/launch-date' as any)}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.launchRunwayBannerDot, { backgroundColor: phase.color }]} />
+              <View style={styles.launchRunwayBannerContent}>
+                <Text style={[styles.launchRunwayBannerCountdown, { color: done ? Colors.success : phase.color }]}>
+                  {done ? '🚀 Launched!' : formatCountdown(daysLeft)}
+                </Text>
+                {!done && (
+                  <Text style={styles.launchRunwayBannerPhase}>{phase.label} phase · tap for milestones</Text>
+                )}
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+            </TouchableOpacity>
           )
         })()}
 
@@ -1035,27 +1009,17 @@ const styles = StyleSheet.create({
   launchRunwayEmptyLeft: { gap: 3 },
   launchRunwayEmptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.primary },
   launchRunwayEmptySub: { fontSize: 12, color: Colors.textSecondary },
-  launchRunway: {
+  launchRunwayBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: Colors.card, borderRadius: Radius.lg,
-    marginBottom: Spacing.lg, borderLeftWidth: 4, ...Shadow.card, overflow: 'hidden',
+    paddingHorizontal: Spacing.lg, paddingVertical: 14,
+    marginBottom: Spacing.lg,
+    borderWidth: 1.5, ...Shadow.card,
   },
-  launchRunwayHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: Spacing.lg,
-  },
-  launchRunwayLabel: { fontSize: 10, fontWeight: '700', color: Colors.textTertiary, letterSpacing: 1, marginBottom: 4 },
-  launchRunwayCountdown: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
-  launchRunwayPhase: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  launchRunwayMilestones: {
-    borderTopWidth: 1, borderTopColor: Colors.border,
-    paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.lg, gap: Spacing.md,
-  },
-  launchRunwayMilestone: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  launchRunwayMilestoneEmoji: { fontSize: 18, width: 24, textAlign: 'center', marginTop: 1 },
-  launchRunwayMilestoneText: { flex: 1 },
-  launchRunwayMilestoneTitle: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  launchRunwayMilestoneDetail: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginTop: 1 },
-  launchRunwayMore: { fontSize: 12, fontWeight: '700', marginTop: 4 },
+  launchRunwayBannerDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  launchRunwayBannerContent: { flex: 1 },
+  launchRunwayBannerCountdown: { fontSize: 17, fontWeight: '800' },
+  launchRunwayBannerPhase: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
 
   // Top risks inline preview
   topRisksCard: {

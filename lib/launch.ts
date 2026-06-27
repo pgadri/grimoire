@@ -201,11 +201,11 @@ export async function scheduleLaunchReminders(isoDate: string): Promise<void> {
       })
     }
 
-    await schedule(60, '60 days to launch 🏗️', 'Foundation phase: set up your landing page and waitlist today.')
-    await schedule(30, '30 days to launch 📣', 'Audience phase: start posting build-in-public content this week.')
-    await schedule(14, '2 weeks to launch 🔥', 'Momentum phase: collect testimonials and write your press outreach.')
-    await schedule(7,  '1 week to launch ⚡', 'Final sprint: schedule your launch posts and finalize Product Hunt page.')
-    await schedule(2,  '2 days to launch 🚀', 'Almost there! Send press emails and test every critical flow.')
-    await schedule(0,  '🚀 Launch day!', 'This is it. Go live, post everywhere, and celebrate the ship.')
+    await schedule(60, '60 days to launch 🏗️', 'Foundation phase: nail your landing page, secure your social handles, and get your waitlist up.')
+    await schedule(30, '30 days to launch 📣', 'Audience phase: recruit 10 beta testers, post your first build-in-public update, and set up analytics.')
+    await schedule(14, '2 weeks to launch 🔥', 'Momentum phase: collect 1–2 testimonials, finalize pricing, and draft press outreach emails.')
+    await schedule(7,  '1 week to launch ⚡', 'Final sprint: submit to App Store, schedule launch posts, and brief your personal network to upvote.')
+    await schedule(2,  '2 days to launch 🚀', 'Almost there! Send press emails, test every flow on a real device, and switch Stripe to live mode.')
+    await schedule(0,  '🚀 Launch day!', 'Ship it. Post everywhere, watch Sentry for crashes, and respond to every comment today.')
   } catch {}
 }
