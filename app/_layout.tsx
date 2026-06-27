@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Notifications from 'expo-notifications'
 import Constants from 'expo-constants'
 import { Colors } from '../constants/theme'
-import { getUser } from '../lib/auth'
+import { getUser, type GrimoireUser } from '../lib/auth'
 import { LEGAL_VERSION, LEGAL_ACCEPTED_KEY } from '../lib/legal'
 import { initPurchases } from '../lib/purchases'
 import { registerPushToken } from '../lib/threads'
@@ -42,17 +42,26 @@ async function registerForPushNotifications(): Promise<string | null> {
   }
 }
 
+type BootData = {
+  user: GrimoireUser | null
+  onboarded: string | null
+  legalAccepted: string | null
+}
+
 export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
-  const [ready, setReady] = useState(false)
+  // null = still loading, object = done
+  const [boot, setBoot] = useState<BootData | null>(null)
 
+  // Step 1: load data once, never touch the router here
   useEffect(() => {
-    // Clear stale project profile data — risks now derive from GitHub repo scan
     AsyncStorage.removeItem('grimoire:project').catch(() => {})
-
-    Promise.all([getUser(), AsyncStorage.getItem(ONBOARDED_KEY), AsyncStorage.getItem(LEGAL_ACCEPTED_KEY)]).then(([user, onboarded, legalAccepted]) => {
-      const needsTerms = user && Number(legalAccepted ?? 0) < LEGAL_VERSION
+    Promise.all([
+      getUser(),
+      AsyncStorage.getItem(ONBOARDED_KEY),
+      AsyncStorage.getItem(LEGAL_ACCEPTED_KEY),
+    ]).then(([user, onboarded, legalAccepted]) => {
       try { initPurchases(user?.id ?? undefined) } catch {}
       if (user) {
         registerForPushNotifications().then(token => {
@@ -60,32 +69,32 @@ export default function RootLayout() {
         })
         getRepState().then(rep => syncReputation(rep.points).catch(() => {}))
       }
-      const inAuth       = segments[0] === '(auth)'
-      const inOnboarding = segments[0] === 'onboarding'
-      const inWelcome    = segments[0] === 'welcome'
-      const inTabs       = segments[0] === '(tabs)'
-
-      try {
-        if (!user) {
-          if (!inAuth) router.replace('/(auth)')
-        } else if (needsTerms && segments[0] !== 'terms-gate') {
-          router.replace('/terms-gate')
-        } else if (!onboarded) {
-          if (!inOnboarding) router.replace('/onboarding')
-        } else {
-          if (!inTabs && !inWelcome) router.replace('/(tabs)')
-        }
-      } catch {}
-    }).catch(() => {}).finally(() => {
-      setReady(true)
+      setBoot({ user, onboarded, legalAccepted })
+    }).catch(() => {
+      setBoot({ user: null, onboarded: null, legalAccepted: null })
     })
   }, [])
 
-  if (!ready) return (
-    <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-      <ActivityIndicator size="large" color="#007AFF" />
-    </View>
-  )
+  // Step 2: navigate only after Stack is rendered AND boot data is ready
+  useEffect(() => {
+    if (boot === null) return
+
+    const { user, onboarded, legalAccepted } = boot
+    const needsTerms = user && Number(legalAccepted ?? 0) < LEGAL_VERSION
+    const seg = segments[0] as string | undefined
+
+    try {
+      if (!user) {
+        if (seg !== '(auth)') router.replace('/(auth)')
+      } else if (needsTerms && seg !== 'terms-gate') {
+        router.replace('/terms-gate')
+      } else if (!onboarded) {
+        if (seg !== 'onboarding') router.replace('/onboarding')
+      } else {
+        if (seg !== '(tabs)' && seg !== 'welcome') router.replace('/(tabs)')
+      }
+    } catch {}
+  }, [boot, segments])
 
   return (
     <>
@@ -98,10 +107,7 @@ export default function RootLayout() {
         <Stack.Screen name="terms-gate" />
         <Stack.Screen
           name="capture/[id]"
-          options={{
-            presentation: 'card',
-            animation: 'slide_from_right',
-          }}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="connectors"
@@ -160,6 +166,17 @@ export default function RootLayout() {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
       </Stack>
+
+      {/* Loading overlay — sits on top of the Stack so the Stack is always mounted */}
+      {boot === null && (
+        <View style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: '#ffffff',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      )}
     </>
   )
 }
