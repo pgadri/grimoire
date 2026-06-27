@@ -70,6 +70,13 @@ const WORKSPACE_ITEMS: SettingItem[] = [
     sub: 'GitHub, OpenAI, Notion',
     route: '/connectors',
   },
+  {
+    icon: 'briefcase-outline',
+    iconBg: '#FF6B35',
+    label: 'Expert Help',
+    sub: 'Testing, scan history & expert services',
+    route: '/(tabs)/services',
+  },
 ]
 
 const ACCOUNT_ITEMS: SettingItem[] = [

@@ -90,7 +90,7 @@ export default function ServicesScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.heading}>Services</Text>
+          <Text style={styles.heading}>Expert Help</Text>
           <Text style={styles.sub}>Tools that help you ship with confidence</Text>
         </View>
 

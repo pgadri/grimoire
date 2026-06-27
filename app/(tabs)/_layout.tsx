@@ -52,10 +52,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="services"
-        options={{
-          title: 'Expert Help',
-          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'briefcase' : 'briefcase-outline'} focused={focused} />,
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="profile"
