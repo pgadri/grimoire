@@ -15,8 +15,10 @@ import { SEED_CAPTURES } from '../../lib/seeds'
 import { getUser } from '../../lib/auth'
 import { syncPublicCapture, unsyncPublicCapture } from '../../lib/community'
 import { checkCaptureLimit, limitMessage } from '../../lib/limits'
+import * as StoreReview from 'expo-store-review'
 
 const CAPTURES_KEY = 'grimoire:captures'
+const REVIEW_ASKED_KEY = 'grimoire:reviewAsked'
 
 
 function getGroup(date: string): string {
@@ -189,6 +191,14 @@ export default function FeedScreen() {
       persistCaptures(next)
       return next
     })
+    // Prompt for review on first real capture (not seed), once per install
+    try {
+      const asked = await AsyncStorage.getItem(REVIEW_ASKED_KEY)
+      if (!asked && await StoreReview.isAvailableAsync()) {
+        await AsyncStorage.setItem(REVIEW_ASKED_KEY, 'true')
+        await StoreReview.requestReview()
+      }
+    } catch {}
   }
 
   const filtered = captures.filter(c =>
