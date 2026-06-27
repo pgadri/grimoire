@@ -1,7 +1,7 @@
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useState } from 'react'
-import { Platform } from 'react-native'
+import { Platform, View, ActivityIndicator } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Notifications from 'expo-notifications'
 import Constants from 'expo-constants'
@@ -53,7 +53,7 @@ export default function RootLayout() {
 
     Promise.all([getUser(), AsyncStorage.getItem(ONBOARDED_KEY), AsyncStorage.getItem(LEGAL_ACCEPTED_KEY)]).then(([user, onboarded, legalAccepted]) => {
       const needsTerms = user && Number(legalAccepted ?? 0) < LEGAL_VERSION
-      initPurchases(user?.id ?? undefined)
+      try { initPurchases(user?.id ?? undefined) } catch {}
       if (user) {
         registerForPushNotifications().then(token => {
           if (token) registerPushToken(token).catch(() => {})
@@ -70,18 +70,23 @@ export default function RootLayout() {
       } else if (needsTerms && segments[0] !== 'terms-gate') {
         router.replace('/terms-gate')
       } else if (!onboarded) {
-        // Logged in but haven't completed onboarding
         if (!inOnboarding) router.replace('/onboarding')
       } else {
-        // Logged in + onboarded — ensure they're in tabs (not stuck on welcome/onboarding/auth)
         if (!inTabs && !inWelcome) router.replace('/(tabs)')
-        // welcome is OK if they just finished onboarding this session; _layout won't auto-exit it
       }
+      setReady(true)
+    }).catch(() => {
+      // Don't hang forever if something in startup throws — just navigate to auth
+      router.replace('/(auth)')
       setReady(true)
     })
   }, [])
 
-  if (!ready) return null
+  if (!ready) return (
+    <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator size="large" color="#007AFF" />
+    </View>
+  )
 
   return (
     <>
