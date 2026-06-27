@@ -19,18 +19,23 @@ export type GrimoireUser = {
 export type Capture = {
   id: string
   title: string
-  url?: string
-  preview: string
-  bullets: string[]
-  concepts: string[]
-  actions: string[]
-  quotes: string[]
-  category: string
+  sourceUrl?: string
+  sourceType: 'video' | 'image' | 'camera' | 'url' | 'text'
   creator: string
-  date: string
-  sourceType: 'url' | 'text' | 'image'
   platform?: string
-  shared?: boolean
+  date: string
+  stars: number
+  starred: boolean
+  isPublic: boolean
+  pushed: boolean
+  pinned: boolean
+  preview: string
+  bullets?: string[]
+  concepts?: string[]
+  actions?: string[]
+  quotes?: string[]
+  transcript?: string
+  category?: string
 }
 
 export type PublicCapture = {

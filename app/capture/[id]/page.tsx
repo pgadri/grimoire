@@ -2,7 +2,10 @@
 
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Globe, Trash2, Share2, BookOpen, Lightbulb, Zap, Quote, Check } from 'lucide-react'
+import {
+  ArrowLeft, Globe, Trash2, Share2, Star, PlayCircle,
+  ImageIcon, Camera, Link2, FileText, Lightbulb, Zap, Quote,
+} from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { ToastContainer, useToast } from '@/components/Toast'
 import { storageCaptures } from '@/lib/storage'
@@ -10,12 +13,21 @@ import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import type { Capture } from '@/lib/types'
 
-const CATEGORY_COLORS: Record<string, string> = {
-  technical: 'bg-blue-100 text-blue-700',
-  business: 'bg-emerald-100 text-emerald-700',
-  design: 'bg-purple-100 text-purple-700',
-  marketing: 'bg-orange-100 text-orange-700',
-  general: 'bg-gray-100 text-gray-700',
+const CATEGORY_COLOR: Record<string, string> = {
+  technical: '#2A6EBB',
+  marketing: '#BB5E2A',
+  launch: '#2A9E6B',
+  pricing: '#9E2A7A',
+  founder: '#2A1B5E',
+  product: '#5E7A2A',
+}
+
+function sourceIcon(type: Capture['sourceType']) {
+  if (type === 'video') return <PlayCircle size={13} className="text-[#7C5CBF] shrink-0" />
+  if (type === 'image') return <ImageIcon size={13} className="text-[#7C5CBF] shrink-0" />
+  if (type === 'camera') return <Camera size={13} className="text-[#7C5CBF] shrink-0" />
+  if (type === 'url') return <Link2 size={13} className="text-[#7C5CBF] shrink-0" />
+  return <FileText size={13} className="text-[#7C5CBF] shrink-0" />
 }
 
 export default function CaptureDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -29,23 +41,16 @@ export default function CaptureDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     const c = storageCaptures.getById(id)
-    if (!c) {
-      router.replace('/feed')
-      return
-    }
+    if (!c) { router.replace('/feed'); return }
     setCapture(c)
   }, [id, router])
 
-  async function toggleShare() {
+  async function togglePublic() {
     if (!capture || !user) { addToast('Sign in to share', 'error'); return }
     setSharing(true)
     try {
-      if (capture.shared) {
-        await api.publicCaptures.delete(capture.id)
-        storageCaptures.update(capture.id, { shared: false })
-        setCapture(c => c ? { ...c, shared: false } : c)
-        addToast('Removed from community', 'info')
-      } else {
+      const becomingPublic = !capture.isPublic
+      if (becomingPublic) {
         await api.publicCaptures.create({
           clientId: capture.id,
           title: capture.title,
@@ -54,17 +59,30 @@ export default function CaptureDetailPage({ params }: { params: Promise<{ id: st
           sourceType: capture.sourceType,
           platform: capture.platform,
           creator: capture.creator,
-          sourceUrl: capture.url,
+          sourceUrl: capture.sourceUrl,
           authorName: user.name,
-        })
-        storageCaptures.update(capture.id, { shared: true })
-        setCapture(c => c ? { ...c, shared: true } : c)
-        addToast('Shared to community!', 'success')
+        }).catch(() => {})
+      } else {
+        await api.publicCaptures.delete(capture.id).catch(() => {})
       }
+      storageCaptures.update(capture.id, { isPublic: becomingPublic, pushed: becomingPublic })
+      setCapture(c => c ? { ...c, isPublic: becomingPublic, pushed: becomingPublic } : c)
+      addToast(becomingPublic ? 'Shared to community!' : 'Removed from community', becomingPublic ? 'success' : 'info')
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Failed to update sharing', 'error')
+      addToast(err instanceof Error ? err.message : 'Failed', 'error')
     } finally {
       setSharing(false)
+    }
+  }
+
+  async function handleShare() {
+    if (!capture) return
+    const text = `${capture.title}\n\n${capture.preview}\n\nShared from Vibecoded`
+    if (navigator.share) {
+      try { await navigator.share({ title: capture.title, text }) } catch {}
+    } else {
+      await navigator.clipboard.writeText(text)
+      addToast('Copied to clipboard', 'success')
     }
   }
 
@@ -73,7 +91,7 @@ export default function CaptureDetailPage({ params }: { params: Promise<{ id: st
     if (!confirm('Delete this capture?')) return
     setDeleting(true)
     try {
-      if (capture.shared) {
+      if (capture.isPublic) {
         await api.publicCaptures.delete(capture.id).catch(() => {})
       }
       storageCaptures.remove(capture.id)
@@ -81,6 +99,13 @@ export default function CaptureDetailPage({ params }: { params: Promise<{ id: st
     } catch {
       setDeleting(false)
     }
+  }
+
+  function handleStar() {
+    if (!capture) return
+    const next = { ...capture, starred: !capture.starred, stars: capture.starred ? capture.stars - 1 : capture.stars + 1 }
+    storageCaptures.update(capture.id, { starred: next.starred, stars: next.stars })
+    setCapture(next)
   }
 
   if (!capture) {
@@ -93,142 +118,176 @@ export default function CaptureDetailPage({ params }: { params: Promise<{ id: st
     )
   }
 
-  const catColor = CATEGORY_COLORS[capture.category?.toLowerCase()] || 'bg-gray-100 text-gray-700'
+  const catColor = CATEGORY_COLOR[capture.category?.toLowerCase() ?? ''] ?? '#7C5CBF'
+  const previewLines = capture.preview
+    .split('\n')
+    .map(l => l.replace(/^[•\-→]\s*/, '').trim())
+    .filter(Boolean)
 
   return (
     <AppShell>
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {/* Header */}
-      <div className="sticky top-0 bg-[#EDE9E3]/95 backdrop-blur-sm pt-6 pb-3 px-4 z-10 flex items-center justify-between">
-        <button onClick={() => router.back()} className="p-2 -ml-1 rounded-xl hover:bg-white/70 transition-colors">
-          <ArrowLeft size={20} className="text-[#1A2332]" />
+      <div className="sticky top-0 bg-[#EDE9E3]/95 backdrop-blur-sm pt-5 pb-3 px-4 z-10 flex items-center justify-between">
+        <button onClick={() => router.back()} className="w-9 h-9 rounded-full bg-white border border-[#E8E4DE] shadow-sm flex items-center justify-center hover:bg-[#EDE9E3] transition-colors">
+          <ArrowLeft size={18} className="text-[#1A2332]" />
         </button>
         <div className="flex items-center gap-2">
           <button
-            onClick={toggleShare}
-            disabled={sharing}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all border ${
-              capture.shared
-                ? 'bg-[#2A1B5E] text-white border-[#2A1B5E]'
-                : 'bg-white text-[#1A2332] border-[#E8E4DE] hover:border-[#7C5CBF]'
-            }`}
+            onClick={handleShare}
+            className="w-9 h-9 rounded-full bg-white border border-[#E8E4DE] shadow-sm flex items-center justify-center hover:bg-[#EDE9E3] transition-colors"
           >
-            {sharing ? (
-              <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            ) : capture.shared ? (
-              <><Check size={13} /> Shared</>
-            ) : (
-              <><Share2 size={13} /> Share</>
-            )}
+            <Share2 size={16} className="text-[#1A2332]" />
           </button>
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="p-2 rounded-xl bg-white border border-[#E8E4DE] text-red-500 hover:bg-red-50 transition-colors"
+            className="w-9 h-9 rounded-full bg-white border border-[#E8E4DE] shadow-sm flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
           >
-            {deleting ? (
-              <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Trash2 size={16} />
-            )}
+            {deleting
+              ? <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+              : <Trash2 size={16} className="text-[#EF4444]" />}
           </button>
         </div>
       </div>
 
-      <div className="px-4 pb-8 space-y-4">
-        {/* Title card */}
-        <div className="bg-white rounded-2xl p-5 border border-[#E8E4DE]">
-          <div className="flex items-center justify-between mb-3">
-            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${catColor}`}>
-              {capture.category}
-            </span>
-            {capture.url && (
-              <a href={capture.url} target="_blank" rel="noopener noreferrer"
-                className="text-[#7C5CBF] hover:text-[#2A1B5E] transition-colors">
-                <Globe size={16} />
+      <div className="px-4 pb-10 space-y-3">
+        {/* Main card */}
+        <div className="bg-white rounded-2xl border border-[#E8E4DE] shadow-sm overflow-hidden">
+          <div className="p-5">
+            {/* Source row */}
+            <div className="flex items-center gap-1.5 mb-3">
+              {sourceIcon(capture.sourceType)}
+              <span className="text-[11px] text-[#8B8B8B]">
+                {capture.platform ? `${capture.platform} · ` : ''}{capture.creator}
+              </span>
+              {capture.isPublic && (
+                <span className="text-[9px] font-bold text-[#2A1B5E] bg-[#2A1B5E]/10 px-1.5 py-0.5 rounded-full ml-1">PUBLIC</span>
+              )}
+              <span className="text-[11px] text-[#BDBDBD] ml-auto">{capture.date}</span>
+            </div>
+
+            {/* Title */}
+            <h1 className="text-lg font-bold text-[#1A2332] leading-snug mb-3">{capture.title}</h1>
+
+            {/* Category chip */}
+            {capture.category && (
+              <div className="inline-flex items-center px-2 py-0.5 rounded-full mb-3" style={{ backgroundColor: catColor + '18' }}>
+                <span className="text-[9px] font-bold tracking-wide" style={{ color: catColor }}>
+                  {capture.category.toUpperCase()}
+                </span>
+              </div>
+            )}
+
+            {/* Preview as bullet list */}
+            <div className="space-y-1.5 mb-4">
+              {previewLines.map((line, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-[#7C5CBF] font-bold text-base leading-5 shrink-0">·</span>
+                  <p className="text-sm text-[#8B8B8B] leading-5">{line}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Source link */}
+            {capture.sourceUrl && (
+              <a
+                href={capture.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-[#7C5CBF] hover:underline mb-2"
+              >
+                <Globe size={12} />
+                View source
               </a>
             )}
           </div>
-          <h1 className="text-lg font-bold text-[#1A2332] mb-2">{capture.title}</h1>
-          <p className="text-sm text-[#8B8B8B] leading-relaxed">{capture.preview}</p>
-          <div className="mt-3 flex items-center justify-between text-xs text-[#BDBDBD]">
-            <span>{capture.creator}</span>
-            <span>{new Date(capture.date).toLocaleDateString()}</span>
+
+          {/* Footer actions */}
+          <div className="flex items-center gap-5 px-5 py-3 border-t border-[#E8E4DE]">
+            <button onClick={handleStar} className="flex items-center gap-1.5 hover:opacity-70 transition-opacity">
+              <Star size={15} className={capture.starred ? 'fill-[#F0A500] text-[#F0A500]' : 'text-[#8B8B8B]'} />
+              <span className="text-[11px] text-[#8B8B8B]">{capture.stars}</span>
+            </button>
+            <button
+              onClick={togglePublic}
+              disabled={sharing}
+              className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
+            >
+              <Globe size={15} className={capture.isPublic ? 'text-[#2A1B5E]' : 'text-[#8B8B8B]'} />
+              <span className={`text-[11px] ${capture.isPublic ? 'text-[#2A1B5E] font-medium' : 'text-[#8B8B8B]'}`}>
+                {sharing ? '…' : capture.isPublic ? 'Public' : 'Publish'}
+              </span>
+            </button>
+            <button onClick={handleShare} className="flex items-center gap-1.5 hover:opacity-70 transition-opacity">
+              <Share2 size={15} className="text-[#8B8B8B]" />
+              <span className="text-[11px] text-[#8B8B8B]">Share</span>
+            </button>
           </div>
         </div>
 
-        {/* Key Points */}
-        {capture.bullets?.length > 0 && (
-          <Section icon={<BookOpen size={16} />} title="Key Points" color="text-blue-600">
-            <ul className="space-y-2">
-              {capture.bullets.map((b, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-[#1A2332]">
-                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5 shrink-0" />
-                  {b}
-                </li>
-              ))}
-            </ul>
-          </Section>
-        )}
-
         {/* Concepts */}
-        {capture.concepts?.length > 0 && (
-          <Section icon={<Lightbulb size={16} />} title="Concepts" color="text-yellow-600">
-            <div className="flex flex-wrap gap-2">
-              {capture.concepts.map((c, i) => (
-                <span key={i} className="px-3 py-1 bg-yellow-50 text-yellow-800 rounded-full text-xs font-medium border border-yellow-200">
-                  {c}
-                </span>
+        {(capture.concepts?.length ?? 0) > 0 && (
+          <div className="bg-white rounded-2xl border border-[#E8E4DE] shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Lightbulb size={15} className="text-[#F0A500]" />
+              <h2 className="text-sm font-bold text-[#1A2332]">Concepts</h2>
+            </div>
+            <div className="space-y-2">
+              {capture.concepts!.map((c, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#F0A500] mt-1.5 shrink-0" />
+                  <p className="text-sm text-[#1A2332] leading-relaxed">{c}</p>
+                </div>
               ))}
             </div>
-          </Section>
+          </div>
         )}
 
         {/* Action Items */}
-        {capture.actions?.length > 0 && (
-          <Section icon={<Zap size={16} />} title="Action Items" color="text-emerald-600">
-            <ul className="space-y-2">
-              {capture.actions.map((a, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-[#1A2332]">
-                  <div className="w-4 h-4 rounded border border-emerald-400 shrink-0 mt-0.5" />
-                  {a}
-                </li>
+        {(capture.actions?.length ?? 0) > 0 && (
+          <div className="bg-white rounded-2xl border border-[#E8E4DE] shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap size={15} className="text-[#22C55E]" />
+              <h2 className="text-sm font-bold text-[#1A2332]">Action Items</h2>
+            </div>
+            <div className="space-y-2">
+              {capture.actions!.map((a, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <div className="w-4 h-4 rounded border border-[#22C55E]/60 shrink-0 mt-0.5" />
+                  <p className="text-sm text-[#1A2332] leading-relaxed">{a}</p>
+                </div>
               ))}
-            </ul>
-          </Section>
+            </div>
+          </div>
         )}
 
         {/* Quotes */}
-        {capture.quotes?.length > 0 && (
-          <Section icon={<Quote size={16} />} title="Quotes" color="text-purple-600">
+        {(capture.quotes?.length ?? 0) > 0 && (
+          <div className="bg-white rounded-2xl border border-[#E8E4DE] shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Quote size={15} className="text-[#7C5CBF]" />
+              <h2 className="text-sm font-bold text-[#1A2332]">Quotes</h2>
+            </div>
             <div className="space-y-3">
-              {capture.quotes.map((q, i) => (
-                <blockquote key={i} className="border-l-3 border-purple-300 pl-3">
-                  <p className="text-sm text-[#1A2332] italic">&ldquo;{q}&rdquo;</p>
+              {capture.quotes!.map((q, i) => (
+                <blockquote key={i} className="border-l-2 border-[#7C5CBF]/40 pl-3">
+                  <p className="text-sm text-[#1A2332] italic leading-relaxed">&ldquo;{q}&rdquo;</p>
                 </blockquote>
               ))}
             </div>
-          </Section>
+          </div>
+        )}
+
+        {/* Transcript */}
+        {capture.transcript && (
+          <div className="bg-white rounded-2xl border border-[#E8E4DE] shadow-sm p-5">
+            <h2 className="text-sm font-bold text-[#1A2332] mb-3">Full Transcript</h2>
+            <p className="text-xs text-[#8B8B8B] leading-relaxed whitespace-pre-wrap">{capture.transcript}</p>
+          </div>
         )}
       </div>
     </AppShell>
-  )
-}
-
-function Section({ icon, title, color, children }: {
-  icon: React.ReactNode
-  title: string
-  color: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="bg-white rounded-2xl p-5 border border-[#E8E4DE]">
-      <div className={`flex items-center gap-2 mb-3 ${color}`}>
-        {icon}
-        <h2 className="font-semibold text-sm">{title}</h2>
-      </div>
-      {children}
-    </div>
   )
 }
