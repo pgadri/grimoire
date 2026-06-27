@@ -65,19 +65,18 @@ export default function RootLayout() {
       const inWelcome    = segments[0] === 'welcome'
       const inTabs       = segments[0] === '(tabs)'
 
-      if (!user) {
-        if (!inAuth) router.replace('/(auth)')
-      } else if (needsTerms && segments[0] !== 'terms-gate') {
-        router.replace('/terms-gate')
-      } else if (!onboarded) {
-        if (!inOnboarding) router.replace('/onboarding')
-      } else {
-        if (!inTabs && !inWelcome) router.replace('/(tabs)')
-      }
-      setReady(true)
-    }).catch(() => {
-      // Don't hang forever if something in startup throws — just navigate to auth
-      router.replace('/(auth)')
+      try {
+        if (!user) {
+          if (!inAuth) router.replace('/(auth)')
+        } else if (needsTerms && segments[0] !== 'terms-gate') {
+          router.replace('/terms-gate')
+        } else if (!onboarded) {
+          if (!inOnboarding) router.replace('/onboarding')
+        } else {
+          if (!inTabs && !inWelcome) router.replace('/(tabs)')
+        }
+      } catch {}
+    }).catch(() => {}).finally(() => {
       setReady(true)
     })
   }, [])
