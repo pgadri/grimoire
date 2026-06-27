@@ -70,11 +70,11 @@ export default function TermsGateScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  container: { flex: 1, padding: Spacing.xl, alignItems: 'center' },
+  container: { flex: 1, padding: Spacing.xl, alignItems: 'center', justifyContent: 'center' },
   logoMark: {
     width: 56, height: 56, borderRadius: 16,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
-    marginBottom: Spacing.xl, marginTop: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   logoText: { color: '#fff', fontSize: 26, fontWeight: '700' },
   title: { fontSize: 24, fontWeight: '900', color: Colors.text, textAlign: 'center', marginBottom: Spacing.sm },
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   bullet: { flexDirection: 'row', gap: 8 },
   bulletDot: { fontSize: 14, color: Colors.primary, fontWeight: '800', marginTop: 1 },
   bulletText: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 20 },
-  links: { flexDirection: 'row', gap: Spacing.xl, marginBottom: Spacing.xl, marginTop: Spacing.sm },
+  links: { flexDirection: 'row', gap: Spacing.xl, marginBottom: Spacing.xl, marginTop: Spacing.xl },
   link: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
   acceptBtn: {
     width: '100%', backgroundColor: Colors.primary, borderRadius: Radius.full,
