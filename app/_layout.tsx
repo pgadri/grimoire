@@ -1,6 +1,6 @@
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Platform, View, ActivityIndicator } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Notifications from 'expo-notifications'
@@ -51,6 +51,8 @@ type BootData = {
 export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
+  const segmentsRef = useRef(segments)
+  segmentsRef.current = segments
   // null = still loading, object = done
   const [boot, setBoot] = useState<BootData | null>(null)
 
@@ -75,23 +77,21 @@ export default function RootLayout() {
     })
   }, [])
 
-  // Step 2: navigate only after Stack is rendered AND boot data is ready.
-  // Re-reads legalAccepted fresh from storage each time so accepting terms
-  // in terms-gate.tsx is reflected immediately without stale boot data.
+  // Step 2: initial route decision — runs ONCE when boot data arrives.
+  // Uses segmentsRef (not segments in deps) so in-app navigation never
+  // re-triggers this and causes a loop.
   useEffect(() => {
     if (boot === null) return
-    let cancelled = false
 
     AsyncStorage.getItem(LEGAL_ACCEPTED_KEY).then(legalAccepted => {
-      if (cancelled) return
       const { user, onboarded } = boot
       const needsTerms = user && Number(legalAccepted ?? 0) < LEGAL_VERSION
-      const seg = segments[0] as string | undefined
+      const seg = segmentsRef.current[0] as string | undefined
 
       try {
         if (!user) {
           if (seg !== '(auth)') router.replace('/(auth)')
-        } else if (needsTerms && seg !== 'terms-gate') {
+        } else if (needsTerms) {
           router.replace('/terms-gate')
         } else if (!onboarded) {
           if (seg !== 'onboarding') router.replace('/onboarding')
@@ -100,9 +100,8 @@ export default function RootLayout() {
         }
       } catch {}
     }).catch(() => {})
-
-    return () => { cancelled = true }
-  }, [boot, segments])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boot])
 
   return (
     <>
