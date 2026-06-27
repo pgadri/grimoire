@@ -1,160 +1,296 @@
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  KeyboardAvoidingView, Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../constants/theme'
-import {
-  ProjectStage, StackTag, STAGE_ORDER, STAGE_LABELS, STACK_LABELS, saveProjectProfile,
-} from '../lib/project'
+import type { ProjectStage } from '../lib/project'
 
-const STACK_OPTIONS = Object.keys(STACK_LABELS) as StackTag[]
+type DeveloperType = 'vibe_coder' | 'experienced_dev'
+type WorkStyle = 'solo' | 'team'
+
+const AI_PLATFORMS = [
+  { id: 'cursor',      label: 'Cursor',         emoji: '🖱️' },
+  { id: 'windsurf',    label: 'Windsurf',        emoji: '🏄' },
+  { id: 'claude_code', label: 'Claude Code',     emoji: '✦'  },
+  { id: 'copilot',     label: 'GitHub Copilot',  emoji: '🐙' },
+  { id: 'bolt',        label: 'Bolt.new',        emoji: '⚡' },
+  { id: 'lovable',     label: 'Lovable',         emoji: '💜' },
+  { id: 'v0',          label: 'v0 (Vercel)',     emoji: '▲'  },
+  { id: 'replit',      label: 'Replit AI',       emoji: '🔄' },
+  { id: 'chatgpt',     label: 'ChatGPT',         emoji: '🤖' },
+  { id: 'other',       label: 'Other',           emoji: '✨' },
+]
+
+const STAGE_OPTIONS: { value: ProjectStage; label: string; emoji: string; sub: string }[] = [
+  { value: 'idea',       label: 'Just started',       emoji: '💡', sub: 'Idea only, nothing built yet' },
+  { value: 'building',   label: 'Working prototype',  emoji: '🔨', sub: 'Something exists, still building' },
+  { value: 'pre-launch', label: 'Pre-launch',         emoji: '🚀', sub: 'Almost ready to ship' },
+  { value: 'launched',   label: 'Live & shipping',    emoji: '✅', sub: 'Already in users\' hands' },
+]
+
+const ONBOARDING_KEY = 'grimoire:onboarding'
+export const ONBOARDED_KEY = 'grimoire:onboarded'
+const TOTAL_STEPS = 4
 
 export default function OnboardingScreen() {
   const router = useRouter()
-  const [name, setName] = useState('')
-  const [stage, setStage] = useState<ProjectStage>('building')
-  const [stack, setStack] = useState<Set<StackTag>>(new Set())
-  const [handlesPayments, setHandlesPayments] = useState(false)
-  const [storesUserData, setStoresUserData] = useState(true)
+  const [step, setStep]               = useState(0)
+  const [devType, setDevType]         = useState<DeveloperType | null>(null)
+  const [workStyle, setWorkStyle]     = useState<WorkStyle | null>(null)
+  const [projectName, setProjectName] = useState('')
+  const [projectStage, setProjectStage] = useState<ProjectStage>('building')
+  const [aiPlatforms, setAiPlatforms] = useState<Set<string>>(new Set())
+  const [githubRepo, setGithubRepo]   = useState('')
 
-  const toggleStack = (tag: StackTag) => {
-    setStack(prev => {
+  const togglePlatform = (id: string) =>
+    setAiPlatforms(prev => {
       const next = new Set(prev)
-      next.has(tag) ? next.delete(tag) : next.add(tag)
+      next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+
+  const canProceed = (): boolean => {
+    if (step === 0) return devType !== null
+    if (step === 1) return workStyle !== null
+    if (step === 2) return projectName.trim().length > 0
+    return true  // steps 3 + 4 always proceed
   }
 
-  const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Name your project', 'What are you building?')
-      return
+  const handleNext = async () => {
+    if (step < TOTAL_STEPS - 1) {
+      setStep(s => s + 1)
+    } else {
+      await finish()
     }
-    await saveProjectProfile({
-      name: name.trim(),
-      stage,
-      stack: Array.from(stack),
-      handlesPayments,
-      storesUserData,
-    })
-    router.replace('/readiness')
   }
+
+  const finish = async () => {
+    const data = {
+      developerType: devType,
+      workStyle,
+      projectName: projectName.trim(),
+      projectStage,
+      aiPlatforms: Array.from(aiPlatforms),
+      githubRepo: githubRepo.trim() || undefined,
+      completedAt: new Date().toISOString(),
+    }
+    await AsyncStorage.multiSet([
+      [ONBOARDING_KEY, JSON.stringify(data)],
+      [ONBOARDED_KEY, 'true'],
+    ])
+    router.replace('/welcome')
+  }
+
+  const skip = async () => {
+    await AsyncStorage.setItem(ONBOARDED_KEY, 'true')
+    router.replace('/(tabs)')
+  }
+
+  const progressPct = `${((step + 1) / TOTAL_STEPS) * 100}%` as `${number}%`
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.kicker}>SET UP YOUR GRIMOIRE</Text>
-        <Text style={styles.heading}>What are you building?</Text>
-        <Text style={styles.sub}>
-          Tell Grimoire about your project and it will warn you about what's coming — before it
-          hurts.
-        </Text>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: progressPct }]} />
+        </View>
 
-        {/* Project name */}
-        <Text style={styles.label}>PROJECT NAME</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. My recipe app"
-          placeholderTextColor={Colors.textSecondary}
-          value={name}
-          onChangeText={setName}
-          maxLength={50}
-        />
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-        {/* Stage */}
-        <Text style={styles.label}>WHERE ARE YOU AT?</Text>
-        <View style={styles.stageCol}>
-          {STAGE_ORDER.map(s => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.stageRow, stage === s && styles.stageRowActive]}
-              onPress={() => setStage(s)}
-              activeOpacity={0.8}
+          {step === 0 && (
+            <StepContainer
+              kicker={`STEP 1 OF ${TOTAL_STEPS}`}
+              title="How do you code?"
+              sub="This helps Vibecoded tailor the experience just for you."
             >
-              <View style={[styles.radio, stage === s && styles.radioActive]}>
-                {stage === s && <View style={styles.radioDot} />}
+              <IdentityCard
+                selected={devType === 'vibe_coder'}
+                emoji="🎯"
+                title="Vibe Coder"
+                desc="I build with AI — learning and shipping as I go."
+                onPress={() => setDevType('vibe_coder')}
+              />
+              <IdentityCard
+                selected={devType === 'experienced_dev'}
+                emoji="⚙️"
+                title="Developer using AI"
+                desc="Experienced dev using AI to ship faster."
+                onPress={() => setDevType('experienced_dev')}
+              />
+            </StepContainer>
+          )}
+
+          {step === 1 && (
+            <StepContainer
+              kicker={`STEP 2 OF ${TOTAL_STEPS}`}
+              title="Solo or team?"
+              sub="We customize features to match how you work."
+            >
+              <IdentityCard
+                selected={workStyle === 'solo'}
+                emoji="🧑‍💻"
+                title="Solo Builder"
+                desc="Just me, doing everything myself."
+                onPress={() => setWorkStyle('solo')}
+              />
+              <IdentityCard
+                selected={workStyle === 'team'}
+                emoji="👥"
+                title="Team"
+                desc="Working with co-founders or teammates."
+                onPress={() => setWorkStyle('team')}
+              />
+            </StepContainer>
+          )}
+
+          {step === 2 && (
+            <StepContainer
+              kicker={`STEP 3 OF ${TOTAL_STEPS}`}
+              title="Your current project"
+              sub="What are you building right now?"
+            >
+              <Text style={styles.fieldLabel}>PROJECT NAME</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. My recipe app"
+                placeholderTextColor={Colors.textTertiary}
+                value={projectName}
+                onChangeText={setProjectName}
+                maxLength={50}
+                autoFocus
+              />
+
+              <Text style={[styles.fieldLabel, { marginTop: Spacing.lg }]}>WHERE ARE YOU AT?</Text>
+              <View style={styles.stageGrid}>
+                {STAGE_OPTIONS.map(s => (
+                  <TouchableOpacity
+                    key={s.value}
+                    style={[styles.stageCard, projectStage === s.value && styles.stageCardActive]}
+                    onPress={() => setProjectStage(s.value)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.stageEmoji}>{s.emoji}</Text>
+                    <Text style={[styles.stageLabel, projectStage === s.value && styles.stageLabelActive]}>
+                      {s.label}
+                    </Text>
+                    <Text style={styles.stageSub}>{s.sub}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-              <Text style={[styles.stageLabel, stage === s && styles.stageLabelActive]}>
-                {STAGE_LABELS[s]}
-              </Text>
+            </StepContainer>
+          )}
+
+          {step === 3 && (
+            <StepContainer
+              kicker={`STEP 4 OF ${TOTAL_STEPS}`}
+              title="Your tools"
+              sub="Which AI coding tools do you use? Select all that apply."
+            >
+              <View style={styles.platformGrid}>
+                {AI_PLATFORMS.map(p => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.platformChip, aiPlatforms.has(p.id) && styles.platformChipActive]}
+                    onPress={() => togglePlatform(p.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.platformEmoji}>{p.emoji}</Text>
+                    <Text style={[styles.platformLabel, aiPlatforms.has(p.id) && styles.platformLabelActive]}>
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.fieldLabel, { marginTop: Spacing.xl }]}>GITHUB REPO</Text>
+              <Text style={styles.fieldHint}>Optional — we can scan your stack automatically</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="https://github.com/you/your-project"
+                placeholderTextColor={Colors.textTertiary}
+                value={githubRepo}
+                onChangeText={setGithubRepo}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
+            </StepContainer>
+          )}
+
+        </ScrollView>
+
+        <View style={styles.footer}>
+          {step > 0 ? (
+            <TouchableOpacity style={styles.backBtn} onPress={() => setStep(s => s - 1)}>
+              <Ionicons name="arrow-back" size={20} color={Colors.text} />
             </TouchableOpacity>
-          ))}
+          ) : (
+            <View style={{ width: 46 }} />
+          )}
+
+          <TouchableOpacity
+            style={[styles.nextBtn, !canProceed() && styles.nextBtnDisabled]}
+            onPress={handleNext}
+            disabled={!canProceed()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.nextBtnText}>
+              {step === TOTAL_STEPS - 1 ? "Let's go!" : 'Continue'}
+            </Text>
+            <Ionicons
+              name={step === TOTAL_STEPS - 1 ? 'checkmark' : 'arrow-forward'}
+              size={18}
+              color="#fff"
+            />
+          </TouchableOpacity>
         </View>
 
-        {/* Stack */}
-        <Text style={styles.label}>YOUR STACK</Text>
-        <Text style={styles.hint}>Tap everything you're using. Grimoire matches risks to these.</Text>
-        <View style={styles.chipWrap}>
-          {STACK_OPTIONS.map(tag => {
-            const active = stack.has(tag)
-            return (
-              <TouchableOpacity
-                key={tag}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => toggleStack(tag)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {STACK_LABELS[tag]}
-                </Text>
-              </TouchableOpacity>
-            )
-          })}
-        </View>
-
-        {/* Yes/no gates */}
-        <Text style={styles.label}>A COUPLE MORE THINGS</Text>
-        <ToggleRow
-          icon="card-outline"
-          label="Does it handle payments?"
-          sub="Unlocks payment & billing risk checks"
-          value={handlesPayments}
-          onToggle={() => setHandlesPayments(v => !v)}
-        />
-        <ToggleRow
-          icon="people-outline"
-          label="Does it store user data?"
-          sub="Unlocks data, privacy & legal checks"
-          value={storesUserData}
-          onToggle={() => setStoresUserData(v => !v)}
-        />
-
-        <TouchableOpacity style={styles.cta} onPress={handleSave} activeOpacity={0.9}>
-          <Text style={styles.ctaText}>See my launch risks</Text>
-          <Ionicons name="arrow-forward" size={18} color={Colors.card} />
+        <TouchableOpacity style={styles.skipBtn} onPress={skip}>
+          <Text style={styles.skipText}>Skip setup</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.skip} onPress={() => router.replace('/(tabs)')}>
-          <Text style={styles.skipText}>Skip for now</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }
 
-function ToggleRow({
-  icon, label, sub, value, onToggle,
+function StepContainer({
+  kicker, title, sub, children,
 }: {
-  icon: keyof typeof Ionicons.glyphMap
-  label: string
-  sub: string
-  value: boolean
-  onToggle: () => void
+  kicker: string; title: string; sub: string; children: React.ReactNode
 }) {
   return (
-    <TouchableOpacity style={styles.toggleRow} onPress={onToggle} activeOpacity={0.8}>
-      <View style={styles.toggleIcon}>
-        <Ionicons name={icon} size={18} color={Colors.primary} />
+    <View>
+      <Text style={styles.kicker}>{kicker}</Text>
+      <Text style={styles.stepTitle}>{title}</Text>
+      <Text style={styles.stepSub}>{sub}</Text>
+      <View style={styles.stepContent}>{children}</View>
+    </View>
+  )
+}
+
+function IdentityCard({
+  selected, emoji, title, desc, onPress,
+}: {
+  selected: boolean; emoji: string; title: string; desc: string; onPress: () => void
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.identityCard, selected && styles.identityCardActive]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <Text style={styles.identityEmoji}>{emoji}</Text>
+      <View style={styles.identityText}>
+        <Text style={[styles.identityTitle, selected && styles.identityTitleActive]}>{title}</Text>
+        <Text style={styles.identityDesc}>{desc}</Text>
       </View>
-      <View style={styles.toggleText}>
-        <Text style={styles.toggleLabel}>{label}</Text>
-        <Text style={styles.toggleSub}>{sub}</Text>
-      </View>
-      <View style={[styles.checkbox, value && styles.checkboxActive]}>
-        {value && <Ionicons name="checkmark" size={15} color={Colors.card} />}
+      <View style={[styles.radio, selected && styles.radioActive]}>
+        {selected && <View style={styles.radioDot} />}
       </View>
     </TouchableOpacity>
   )
@@ -162,62 +298,99 @@ function ToggleRow({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  scroll: { padding: Spacing.lg, paddingBottom: 48 },
-  kicker: { ...Typography.sectionLabel, color: Colors.accent, marginBottom: Spacing.sm },
-  heading: { fontSize: 28, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
-  sub: { ...Typography.cardBody, color: Colors.textSecondary, lineHeight: 21, marginBottom: Spacing.xl },
-  label: { ...Typography.sectionLabel, color: Colors.sectionLabel, marginTop: Spacing.lg, marginBottom: Spacing.sm },
-  hint: { ...Typography.caption, color: Colors.textSecondary, marginBottom: Spacing.md, marginTop: -2 },
-  input: {
-    backgroundColor: Colors.card, borderRadius: Radius.md, padding: Spacing.md,
-    fontSize: 16, fontWeight: '600', color: Colors.text, ...Shadow.card,
+  progressTrack: { height: 3, backgroundColor: Colors.border },
+  progressFill: { height: 3, backgroundColor: Colors.primary, borderRadius: 2 },
+
+  scroll: { padding: Spacing.xl, paddingBottom: 24 },
+
+  kicker: {
+    fontSize: 11, fontWeight: '700', color: Colors.primary,
+    letterSpacing: 1, marginBottom: Spacing.sm,
   },
-  stageCol: { gap: Spacing.sm },
-  stageRow: {
+  stepTitle: {
+    fontSize: 30, fontWeight: '800', color: Colors.text,
+    lineHeight: 36, marginBottom: Spacing.sm,
+  },
+  stepSub: {
+    fontSize: 15, color: Colors.textSecondary,
+    lineHeight: 22, marginBottom: Spacing.xl,
+  },
+  stepContent: { gap: Spacing.md },
+
+  identityCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.card, borderRadius: Radius.md, padding: Spacing.md,
-    borderWidth: 1.5, borderColor: Colors.card,
+    backgroundColor: Colors.card, borderRadius: Radius.lg,
+    padding: Spacing.lg, borderWidth: 2, borderColor: Colors.border,
+    ...Shadow.card,
   },
-  stageRowActive: { borderColor: Colors.primary },
+  identityCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
+  identityEmoji: { fontSize: 28 },
+  identityText: { flex: 1 },
+  identityTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 3 },
+  identityTitleActive: { color: Colors.primary },
+  identityDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
   radio: {
-    width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: Colors.border,
+    width: 24, height: 24, borderRadius: 12,
+    borderWidth: 2, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
   radioActive: { borderColor: Colors.primary },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary },
-  stageLabel: { ...Typography.cardBody, color: Colors.text, fontWeight: '500' },
-  stageLabelActive: { color: Colors.primary, fontWeight: '700' },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 9, borderRadius: Radius.full,
-    backgroundColor: Colors.card, borderWidth: 1.5, borderColor: Colors.border,
+  radioDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.primary },
+
+  fieldLabel: {
+    fontSize: 11, fontWeight: '700', color: Colors.textSecondary,
+    letterSpacing: 0.5, marginBottom: 6,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  chipTextActive: { color: Colors.card },
-  toggleRow: {
+  fieldHint: { fontSize: 12, color: Colors.textTertiary, marginBottom: 8, marginTop: -4 },
+  input: {
+    backgroundColor: Colors.card, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md, paddingVertical: 14,
+    fontSize: 16, color: Colors.text, ...Shadow.card,
+  },
+
+  stageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  stageCard: {
+    width: '47%', alignItems: 'center', paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.card, borderRadius: Radius.md,
+    borderWidth: 2, borderColor: Colors.border, gap: 4, ...Shadow.card,
+  },
+  stageCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
+  stageEmoji: { fontSize: 22 },
+  stageLabel: { fontSize: 13, fontWeight: '700', color: Colors.text, textAlign: 'center' },
+  stageLabelActive: { color: Colors.primary },
+  stageSub: { fontSize: 10, color: Colors.textTertiary, textAlign: 'center', lineHeight: 14 },
+
+  platformGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  platformChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: Colors.card, borderRadius: Radius.full,
+    borderWidth: 2, borderColor: Colors.border, ...Shadow.card,
+  },
+  platformChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '12' },
+  platformEmoji: { fontSize: 16 },
+  platformLabel: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  platformLabelActive: { color: Colors.primary },
+
+  footer: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.card, borderRadius: Radius.md, padding: Spacing.md,
-    marginBottom: Spacing.sm, ...Shadow.card,
+    paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md,
+    borderTopWidth: 1, borderTopColor: Colors.border,
   },
-  toggleIcon: {
-    width: 38, height: 38, borderRadius: Radius.sm, backgroundColor: Colors.primary + '12',
-    alignItems: 'center', justifyContent: 'center',
+  backBtn: {
+    width: 46, height: 46, borderRadius: Radius.full,
+    backgroundColor: Colors.card, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: Colors.border,
   },
-  toggleText: { flex: 1 },
-  toggleLabel: { ...Typography.cardBody, color: Colors.text, fontWeight: '600' },
-  toggleSub: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
-  checkbox: {
-    width: 24, height: 24, borderRadius: Radius.sm, borderWidth: 2, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
+  nextBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: Colors.primary, borderRadius: Radius.full, paddingVertical: 15,
+    ...Shadow.card,
   },
-  checkboxActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  cta: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
-    backgroundColor: Colors.primary, borderRadius: Radius.full, paddingVertical: 16,
-    marginTop: Spacing.xl,
-  },
-  ctaText: { ...Typography.button, color: Colors.card, fontSize: 16 },
-  skip: { alignItems: 'center', paddingVertical: Spacing.md, marginTop: Spacing.xs },
-  skipText: { ...Typography.caption, color: Colors.textSecondary, fontWeight: '600' },
+  nextBtnDisabled: { opacity: 0.35 },
+  nextBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+
+  skipBtn: { alignItems: 'center', paddingVertical: Spacing.md },
+  skipText: { fontSize: 13, color: Colors.textTertiary, fontWeight: '600' },
+
 })

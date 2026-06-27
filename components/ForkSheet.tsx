@@ -44,7 +44,7 @@ export function ForkSheet({ visible, target, onFork, onClose }: Props) {
             </View>
             <View style={styles.optionText}>
               <Text style={styles.optionTitle}>My Maps</Text>
-              <Text style={styles.optionSub}>Your personal Grimoire workspace</Text>
+              <Text style={styles.optionSub}>Your personal Vibecoded workspace</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
           </TouchableOpacity>

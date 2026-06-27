@@ -48,6 +48,7 @@ export default function VerifyScreen() {
         return prev - 1
       })
     }, 1000)
+    return () => clearInterval(timer)
   }
 
   const handleSubmit = async () => {
@@ -65,10 +66,11 @@ export default function VerifyScreen() {
     try {
       if (isReset) {
         await resetPassword({ email, code, newPassword })
+        router.replace('/(tabs)')
       } else {
         await verifyOTP({ email, code })
+        router.replace('/onboarding')
       }
-      router.replace('/(tabs)')
     } catch (e: any) {
       setError(e?.message ?? 'Invalid code. Try again.')
       setCode('')

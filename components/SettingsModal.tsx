@@ -35,15 +35,15 @@ export function SettingsModal({ visible, onClose }: Props) {
 
   const handleSubscription = () => {
     Alert.alert(
-      'Grimoire Plans',
+      'Vibecoded Plans',
       '✦ Free\nUnlimited captures, 3 public maps, Explore access\n\n✦ Creator — $9/mo\nUnlimited maps, sell in Explore, analytics, priority AI\n\n✦ Pro — $19/mo\nTeam workspace, custom domain, API access\n\nBilling coming soon.',
       [{ text: 'Got it' }]
     )
   }
 
   const handleHelp = () => {
-    Linking.openURL('mailto:hello@grimoire.app?subject=Help%20%26%20Feedback').catch(() => {
-      Alert.alert('Send feedback', 'Email us at hello@grimoire.app')
+    Linking.openURL('mailto:hello@vibecoded.tech?subject=Help%20%26%20Feedback').catch(() => {
+      Alert.alert('Send feedback', 'Email us at hello@vibecoded.tech')
     })
   }
 
@@ -64,7 +64,7 @@ export function SettingsModal({ visible, onClose }: Props) {
     { icon: 'flash-outline' as const, label: 'Connectors', sub: 'GitHub, OpenAI, Notion', onPress: () => go('/connectors') },
     { icon: 'lock-closed-outline' as const, label: 'Privacy & Visibility', sub: 'Who can see your maps', onPress: handlePrivacy },
     { icon: 'card-outline' as const, label: 'Subscription', sub: 'Free plan · Upgrade', onPress: handleSubscription },
-    { icon: 'help-circle-outline' as const, label: 'Help & Feedback', sub: 'hello@grimoire.app', onPress: handleHelp },
+    { icon: 'help-circle-outline' as const, label: 'Help & Feedback', sub: 'hello@vibecoded.tech', onPress: handleHelp },
   ]
 
   return (

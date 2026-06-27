@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Share, Switch } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -8,11 +8,13 @@ import * as Clipboard from 'expo-clipboard'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../../constants/theme'
 import { getUser, signOut, GrimoireUser } from '../../lib/auth'
 import { getActivePlan } from '../../lib/purchases'
-import { getRepState, getLevelForPoints, getNextLevel, progressToNext, canSellContent, type RepState } from '../../lib/reputation'
+import { getRepState, getLevelForPoints, getNextLevel, progressToNext, canSellContent, CURRENCY, type RepState } from '../../lib/reputation'
+import type { PlanId } from '../../lib/purchases'
 import type { Capture } from '../../components/CaptureCard'
 
 const CAPTURES_KEY = 'grimoire:captures'
 const MAPS_KEY = 'grimoire:maps'
+const NOTIF_KEY = 'grimoire:notif_thread_replies'
 
 type Stats = { captures: number; starred: number; repos: number; streak: number }
 
@@ -99,7 +101,13 @@ const ACCOUNT_ITEMS: SettingItem[] = [
     icon: 'help-circle-outline',
     iconBg: '#34C759',
     label: 'Help & Feedback',
-    sub: 'hello@grimoire.app',
+    sub: 'hello@vibecoded.tech',
+  },
+  {
+    icon: 'trash-outline',
+    iconBg: '#FF3B30',
+    label: 'Delete Account',
+    sub: 'Permanently remove your data',
   },
 ]
 
@@ -107,22 +115,25 @@ export default function ProfileScreen() {
   const router = useRouter()
   const [user, setUser] = useState<GrimoireUser | null>(null)
   const [stats, setStats] = useState<Stats>({ captures: 0, starred: 0, repos: 0, streak: 0 })
-  const [plan, setPlan] = useState<'free' | 'creator' | 'pro'>('free')
+  const [plan, setPlan] = useState<PlanId>('free')
   const [publicMaps, setPublicMaps] = useState<{ id: string; title: string }[]>([])
   const [rep, setRep] = useState<RepState>({ points: 0, events: [] })
+  const [notifReplies, setNotifReplies] = useState(true)
 
   useFocusEffect(useCallback(() => {
     async function load() {
-      const [u, capturesRaw, mapsRaw, activePlan, repState] = await Promise.all([
+      const [u, capturesRaw, mapsRaw, activePlan, repState, notifRaw] = await Promise.all([
         getUser(),
         AsyncStorage.getItem(CAPTURES_KEY),
         AsyncStorage.getItem(MAPS_KEY),
         getActivePlan(),
         getRepState(),
+        AsyncStorage.getItem(NOTIF_KEY),
       ])
       setUser(u)
       setPlan(activePlan)
       setRep(repState)
+      setNotifReplies(notifRaw !== 'false')
       const captures: Capture[] = capturesRaw ? JSON.parse(capturesRaw) : []
       const maps: any[] = mapsRaw ? JSON.parse(mapsRaw) : []
       setStats({
@@ -155,17 +166,59 @@ export default function ProfileScreen() {
   }
 
   const handleSubscription = () => {
+    if (plan !== 'free') {
+      Alert.alert(
+        'Manage Subscription',
+        'To cancel, go to Settings → Apple ID → Subscriptions on your iPhone and cancel Vibecoded.',
+        [
+          { text: 'Open Settings', onPress: () => Linking.openURL('https://apps.apple.com/account/subscriptions') },
+          { text: 'Done', style: 'cancel' },
+        ]
+      )
+    } else {
+      router.push('/paywall' as any)
+    }
+  }
+
+  const handleDeleteAccount = () => {
     Alert.alert(
-      'Grimoire Plans',
-      '✦ Free\nUnlimited captures, 3 public repos, Explore access\n\n✦ Creator — $9/mo\nUnlimited repos, sell in Explore, analytics, priority AI\n\n✦ Pro — $19/mo\nTeam workspace, custom domain, API access\n\nBilling coming soon.',
-      [{ text: 'Got it' }]
+      'Delete Account?',
+      'This permanently removes your profile, handle, and account data. Your public posts stay anonymised. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            try {
+              const token = await import('../../lib/auth').then(m => m.getToken())
+              if (!token) throw new Error('Not signed in')
+              const res = await fetch('https://reel-capture-production.up.railway.app/auth/account', {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+              })
+              if (!res.ok) throw new Error('Server error')
+              await signOut()
+              router.replace('/(auth)')
+            } catch {
+              Alert.alert('Error', 'Could not delete account. Please try again or email hello@vibecoded.tech.')
+            }
+          },
+        },
+      ]
     )
   }
 
   const handleHelp = () => {
-    Linking.openURL('mailto:hello@grimoire.app?subject=Help%20%26%20Feedback').catch(() => {
-      Alert.alert('Send feedback', 'Email us at hello@grimoire.app')
+    Linking.openURL('mailto:hello@vibecoded.tech?subject=Help%20%26%20Feedback').catch(() => {
+      Alert.alert('Send feedback', 'Email us at hello@vibecoded.tech')
     })
+  }
+
+  const handleNotifReplies = async (val: boolean) => {
+    setNotifReplies(val)
+    await AsyncStorage.setItem(NOTIF_KEY, val ? 'true' : 'false')
+    if (val) {
+      Alert.alert('Notifications on', 'You\'ll be notified when someone replies to your threads.')
+    }
   }
 
   const handleSignOut = () => {
@@ -187,10 +240,11 @@ export default function ProfileScreen() {
   const handleItemPress = (item: SettingItem) => {
     if (item.route) { router.push(item.route as any); return }
     if (item.label === 'Privacy & Visibility') handlePrivacy()
-    else if (item.label === 'Subscription') router.push('/paywall' as any)
+    else if (item.label === 'Subscription') handleSubscription()
     else if (item.label === 'Privacy Policy') router.push({ pathname: '/legal', params: { type: 'privacy' } } as any)
     else if (item.label === 'Terms of Service') router.push({ pathname: '/legal', params: { type: 'terms' } } as any)
     else if (item.label === 'Help & Feedback') handleHelp()
+    else if (item.label === 'Delete Account') handleDeleteAccount()
   }
 
   return (
@@ -219,9 +273,23 @@ export default function ProfileScreen() {
             onPress={() => plan === 'free' && router.push('/paywall' as any)}
           >
             <Text style={[styles.planText, plan !== 'free' && styles.planTextPaid]}>
-              {plan === 'free' ? 'FREE · UPGRADE ↗' : plan === 'creator' ? '✦ CREATOR' : '✦ PRO'}
+              {plan === 'free'
+                ? 'FREE · UPGRADE ↗'
+                : plan === 'solopreneur' ? '✦ SOLOPRENEUR'
+                : '✦ TEAM'}
             </Text>
           </TouchableOpacity>
+
+          {/* Creator mode badge */}
+          {user?.creatorMode && (
+            <TouchableOpacity
+              style={styles.creatorBadge}
+              onPress={() => user.handle && router.push(`/creator/${user.handle}` as any)}
+            >
+              <Ionicons name="sparkles" size={11} color="#fff" />
+              <Text style={styles.creatorBadgeText}>CREATOR</Text>
+            </TouchableOpacity>
+          )}
           <Text style={styles.bio}>{displayBio}</Text>
         </View>
 
@@ -256,7 +324,7 @@ export default function ProfileScreen() {
                   <Text style={styles.repEmoji}>{level.emoji}</Text>
                   <View>
                     <Text style={[styles.repLevelName, { color: level.color }]}>{level.name}</Text>
-                    <Text style={styles.repPoints}>{rep.points} points</Text>
+                    <Text style={styles.repPoints}>{rep.points} {CURRENCY.plural} {CURRENCY.symbol}</Text>
                   </View>
                 </View>
                 {canSellContent(rep.points) && (
@@ -271,7 +339,7 @@ export default function ProfileScreen() {
                     <View style={[styles.repProgressFill, { width: `${progress * 100}%` as any, backgroundColor: level.color }]} />
                   </View>
                   <Text style={styles.repProgressLabel}>
-                    {next.minPoints - rep.points} pts to {next.emoji} {next.name}
+                    {next.minPoints - rep.points} {CURRENCY.plural} to {next.emoji} {next.name}
                   </Text>
                 </>
               )}
@@ -280,7 +348,7 @@ export default function ProfileScreen() {
                   {rep.events.slice(0, 3).map((e, i) => (
                     <View key={i} style={styles.repEvent}>
                       <Text style={styles.repEventLabel}>{e.label}</Text>
-                      <Text style={styles.repEventPts}>+{e.points}</Text>
+                      <Text style={styles.repEventPts}>+{e.points} {CURRENCY.symbol}</Text>
                     </View>
                   ))}
                 </View>
@@ -288,6 +356,70 @@ export default function ProfileScreen() {
             </View>
           )
         })()}
+
+        {/* Creator Mode card */}
+        {user?.creatorMode ? (
+          <TouchableOpacity
+            style={styles.creatorCard}
+            onPress={() => user.handle && router.push(`/creator/${user.handle}` as any)}
+            activeOpacity={0.88}
+          >
+            <View style={styles.creatorCardLeft}>
+              <Text style={styles.creatorCardEmoji}>🎨</Text>
+              <View>
+                <Text style={styles.creatorCardTitle}>Creator Profile</Text>
+                <Text style={styles.creatorCardSub}>
+                  @{user.handle} · {(user.followerCount ?? 0).toLocaleString()} followers
+                </Text>
+              </View>
+            </View>
+            <View style={styles.creatorActions}>
+              <TouchableOpacity
+                onPress={() => router.push('/packet-editor' as any)}
+                style={styles.creatorAction}
+              >
+                <Ionicons name="add-circle-outline" size={15} color={Colors.primary} />
+                <Text style={styles.creatorActionText}>New Packet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  await Share.share({
+                    message: `Follow me on Vibecoded → vibecoded.tech/@${user.handle}`,
+                    url: `https://vibecoded.tech/@${user.handle}`,
+                  })
+                }}
+                style={styles.creatorAction}
+              >
+                <Ionicons name="share-outline" size={15} color={Colors.primary} />
+                <Text style={styles.creatorActionText}>Share</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        ) : canSellContent(rep.points) ? (
+          <TouchableOpacity
+            style={styles.goCreatorCard}
+            onPress={() => router.push('/creator-apply' as any)}
+            activeOpacity={0.88}
+          >
+            <View style={styles.goCreatorLeft}>
+              <Text style={styles.goCreatorEmoji}>🎨</Text>
+              <View>
+                <Text style={styles.goCreatorTitle}>Become a Creator</Text>
+                <Text style={styles.goCreatorSub}>Apply to publish knowledge packets</Text>
+              </View>
+            </View>
+            <View style={styles.goCreatorArrow}>
+              <Ionicons name="arrow-forward" size={16} color="#fff" />
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.creatorLockedCard}>
+            <Ionicons name="lock-closed-outline" size={16} color={Colors.textTertiary} />
+            <Text style={styles.creatorLockedText}>
+              Reach Expert level (500 {CURRENCY.plural}) to unlock Creator Mode
+            </Text>
+          </View>
+        )}
 
         {/* Streak */}
         <View style={styles.streakCard}>
@@ -342,6 +474,25 @@ export default function ProfileScreen() {
         {/* Settings sections */}
         <View style={styles.settingsDivider} />
 
+        <Text style={styles.groupLabel}>NOTIFICATIONS</Text>
+        <View style={styles.settingsGroup}>
+          <View style={styles.settingRow}>
+            <View style={[styles.settingIcon, { backgroundColor: '#FF3B30' }]}>
+              <Ionicons name="notifications-outline" size={17} color="#fff" />
+            </View>
+            <View style={styles.settingText}>
+              <Text style={styles.settingLabel}>Thread replies</Text>
+              <Text style={styles.settingSub}>Push notification when someone replies to your thread</Text>
+            </View>
+            <Switch
+              value={notifReplies}
+              onValueChange={handleNotifReplies}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
+              thumbColor="#fff"
+            />
+          </View>
+        </View>
+
         <Text style={styles.groupLabel}>WORKSPACE</Text>
         <View style={styles.settingsGroup}>
           {WORKSPACE_ITEMS.map((item, i) => (
@@ -377,7 +528,13 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.settingText}>
                 <Text style={styles.settingLabel}>{item.label}</Text>
-                <Text style={styles.settingSub}>{item.sub}</Text>
+                <Text style={styles.settingSub}>
+                  {item.label === 'Subscription'
+                    ? plan === 'free' ? 'Free plan · Upgrade'
+                    : plan === 'solopreneur' ? 'Solopreneur · Manage'
+                    : 'Team · Manage'
+                    : item.sub}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={15} color={Colors.textTertiary} />
             </TouchableOpacity>
@@ -500,6 +657,61 @@ const styles = StyleSheet.create({
     paddingVertical: 16, marginBottom: Spacing.xl, ...Shadow.card,
   },
   signOutText: { fontSize: 15, fontWeight: '600', color: Colors.error },
+
+  creatorBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: Colors.primary, borderRadius: Radius.full,
+    paddingHorizontal: 10, paddingVertical: 5, marginBottom: Spacing.sm,
+  },
+  creatorBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 1 },
+
+  creatorCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.primary + '10', borderRadius: Radius.lg,
+    padding: Spacing.md, marginBottom: Spacing.md,
+    borderWidth: 1.5, borderColor: Colors.primary + '30',
+  },
+  creatorCardLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flex: 1 },
+  creatorCardEmoji: { fontSize: 26 },
+  creatorCardTitle: { fontSize: 15, fontWeight: '700', color: Colors.text },
+  creatorCardSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  creatorShareBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: Colors.card, borderRadius: Radius.full,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1, borderColor: Colors.primary + '40',
+  },
+  creatorShareText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  creatorActions: { flexDirection: 'row', gap: 8 },
+  creatorAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: Colors.card, borderRadius: Radius.full,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1, borderColor: Colors.primary + '40',
+  },
+  creatorActionText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+
+  goCreatorCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.primary, borderRadius: Radius.lg,
+    padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.card,
+  },
+  goCreatorLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flex: 1 },
+  goCreatorEmoji: { fontSize: 26 },
+  goCreatorTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  goCreatorSub: { fontSize: 12, color: '#ffffffCC', marginTop: 2 },
+  goCreatorArrow: {
+    width: 32, height: 32, borderRadius: Radius.full,
+    backgroundColor: '#ffffff25', alignItems: 'center', justifyContent: 'center',
+  },
+
+  creatorLockedCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: Colors.card, borderRadius: Radius.lg,
+    padding: Spacing.md, marginBottom: Spacing.md,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  creatorLockedText: { fontSize: 13, color: Colors.textTertiary, flex: 1 },
   // Reputation card
   repCard: {
     backgroundColor: Colors.card, borderRadius: Radius.lg,

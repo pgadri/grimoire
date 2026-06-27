@@ -173,12 +173,21 @@ export async function toggleMilestoneReaction(
 
 // ─── Products ────────────────────────────────────────────────────────────────
 
+const BASE = 'https://reel-capture-production.up.railway.app'
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await AsyncStorage.getItem('grimoire:token')
+  return token
+    ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json' }
+}
+
 export type ProductStage = 'idea' | 'beta' | 'live' | 'sunset'
 export type ReviewType = 'feedback' | 'review' | 'bug' | 'tester'
 
 export type Product = {
   id: string
-  userId?: string
+  authorId?: string
   name: string
   tagline: string
   description: string
@@ -219,57 +228,129 @@ export const STAGE_LABEL: Record<ProductStage, string> = {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const raw = await AsyncStorage.getItem(COMMUNITY_KEYS.PRODUCTS)
-  return raw ? JSON.parse(raw) : []
+  try {
+    const headers = await authHeaders()
+    const res = await fetch(`${BASE}/products?limit=50`, { headers })
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
 }
 
-export async function createProduct(p: Omit<Product, 'id' | 'createdAt' | 'upvotes' | 'myUpvote'>): Promise<Product> {
-  const products = await getProducts()
-  const newP: Product = {
-    ...p,
-    id: `product_${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    upvotes: 0,
-    myUpvote: false,
+export async function createProduct(
+  p: Omit<Product, 'id' | 'createdAt' | 'upvotes' | 'myUpvote' | 'authorId' | 'authorName'>,
+): Promise<Product> {
+  const headers = await authHeaders()
+  const res = await fetch(`${BASE}/products`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      name: p.name,
+      tagline: p.tagline,
+      description: p.description,
+      url: p.url,
+      category: p.category,
+      stage: p.stage,
+      logoEmoji: p.logoEmoji,
+      tags: p.tags,
+      lookingFor: p.lookingFor,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any).detail ?? 'Failed to create product')
   }
-  products.unshift(newP)
-  await AsyncStorage.setItem(COMMUNITY_KEYS.PRODUCTS, JSON.stringify(products))
-  return newP
+  return res.json()
 }
 
-export async function toggleProductUpvote(productId: string): Promise<void> {
-  const products = await getProducts()
-  const idx = products.findIndex(p => p.id === productId)
-  if (idx === -1) return
-  if (products[idx].myUpvote) {
-    products[idx].upvotes = Math.max(0, products[idx].upvotes - 1)
-    products[idx].myUpvote = false
-  } else {
-    products[idx].upvotes++
-    products[idx].myUpvote = true
-  }
-  await AsyncStorage.setItem(COMMUNITY_KEYS.PRODUCTS, JSON.stringify(products))
+export async function toggleProductUpvote(productId: string): Promise<{ myUpvote: boolean; upvotes: number }> {
+  const headers = await authHeaders()
+  const res = await fetch(`${BASE}/products/${productId}/upvote`, { method: 'POST', headers })
+  if (!res.ok) return { myUpvote: false, upvotes: 0 }
+  return res.json()
 }
 
 export async function getProductReviews(productId: string): Promise<ProductReview[]> {
-  const raw = await AsyncStorage.getItem(COMMUNITY_KEYS.PRODUCT_REVIEWS)
-  const all: Record<string, ProductReview[]> = raw ? JSON.parse(raw) : {}
-  return all[productId] ?? []
+  try {
+    const res = await fetch(`${BASE}/products/${productId}/reviews`)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
 }
 
 export async function addProductReview(
   review: Omit<ProductReview, 'id' | 'createdAt'>,
 ): Promise<void> {
-  const raw = await AsyncStorage.getItem(COMMUNITY_KEYS.PRODUCT_REVIEWS)
-  const all: Record<string, ProductReview[]> = raw ? JSON.parse(raw) : {}
-  const list = all[review.productId] ?? []
-  list.unshift({
-    ...review,
-    id: `review_${Date.now()}`,
-    createdAt: new Date().toISOString(),
+  const headers = await authHeaders()
+  await fetch(`${BASE}/products/${review.productId}/reviews`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      type: review.type,
+      rating: review.rating,
+      body: review.body,
+      authorName: review.authorName,
+    }),
   })
-  all[review.productId] = list
-  await AsyncStorage.setItem(COMMUNITY_KEYS.PRODUCT_REVIEWS, JSON.stringify(all))
+}
+
+// ─── Public Captures ─────────────────────────────────────────────────────────
+
+export type PublicCapture = {
+  id: string
+  clientId: string
+  authorId: string
+  authorName: string
+  authorHandle: string | null
+  title: string
+  preview: string
+  category?: string
+  sourceType: string
+  platform?: string
+  creator?: string
+  sourceUrl?: string
+  createdAt: string
+}
+
+export async function getPublicCaptures(): Promise<PublicCapture[]> {
+  try {
+    const res = await fetch(`${BASE}/public-captures?limit=50`)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
+}
+
+export async function syncPublicCapture(capture: {
+  clientId: string
+  title: string
+  preview: string
+  category?: string
+  sourceType: string
+  platform?: string
+  creator?: string
+  sourceUrl?: string
+  authorName: string
+}): Promise<void> {
+  try {
+    const headers = await authHeaders()
+    await fetch(`${BASE}/public-captures`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(capture),
+    })
+  } catch {}
+}
+
+export async function unsyncPublicCapture(clientId: string): Promise<void> {
+  try {
+    const headers = await authHeaders()
+    await fetch(`${BASE}/public-captures/${clientId}`, { method: 'DELETE', headers })
+  } catch {}
 }
 
 // ─── Utils ───────────────────────────────────────────────────────────────────

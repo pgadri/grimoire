@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const REP_KEY = 'grimoire:reputation'
 
+export const CURRENCY = { name: 'Gears', symbol: '⚙️', plural: 'Gears' }
+
 export type RepLevel = {
   level: number
   name: string

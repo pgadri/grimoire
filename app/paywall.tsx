@@ -11,29 +11,53 @@ import {
   getOfferings, purchasePackage, restorePurchases, getActivePlan,
 } from '../lib/purchases'
 import type { PurchasesPackage } from 'react-native-purchases'
+import type { PlanId } from '../lib/purchases'
 
 type BillingCycle = 'monthly' | 'annual'
 
-const PLAN_FEATURES: Record<string, { label: string; plans: ('creator' | 'pro')[] }[]> = {
-  creator: [
-    { label: 'Unlimited captures', plans: ['creator', 'pro'] },
-    { label: 'Unlimited public repos', plans: ['creator', 'pro'] },
-    { label: 'Sell knowledge packets in Explore', plans: ['creator', 'pro'] },
-    { label: 'Capture analytics', plans: ['creator', 'pro'] },
-    { label: 'Priority AI processing', plans: ['creator', 'pro'] },
-  ],
-  pro: [
-    { label: 'Everything in Creator', plans: ['pro'] },
-    { label: 'Team workspace', plans: ['pro'] },
-    { label: 'Custom domain', plans: ['pro'] },
-    { label: 'API access', plans: ['pro'] },
-    { label: 'Priority support', plans: ['pro'] },
-  ],
-}
-
-const PLAN_COLORS = {
-  creator: Colors.primary,
-  pro: '#9B59B6',
+const PLAN_META: Record<'solopreneur' | 'team', {
+  title: string
+  icon: 'person' | 'people'
+  color: string
+  badge?: string
+  fallbackMonthly: string
+  fallbackAnnual: string
+  savingsLabel: string
+  features: string[]
+}> = {
+  solopreneur: {
+    title: 'Solopreneur',
+    icon: 'person',
+    color: Colors.primary,
+    fallbackMonthly: '$9/mo',
+    fallbackAnnual: '$79/yr',
+    savingsLabel: 'Save $29/yr',
+    features: [
+      'Unlimited captures',
+      'Full community access (post + comment)',
+      'AI-powered launch risk scanner',
+      'Up to 3 projects',
+      'Sell knowledge packets at Expert level',
+      'Priority email support',
+    ],
+  },
+  team: {
+    title: 'Team',
+    icon: 'people',
+    color: '#9B59B6',
+    badge: 'MOST POPULAR',
+    fallbackMonthly: '$29/mo',
+    fallbackAnnual: '$249/yr',
+    savingsLabel: 'Save $99/yr',
+    features: [
+      'Everything in Solopreneur',
+      'Up to 5 team seats',
+      'Shared knowledge maps',
+      'Team workspace & admin controls',
+      'Unlimited projects',
+      'Priority support',
+    ],
+  },
 }
 
 export default function PaywallScreen() {
@@ -43,11 +67,9 @@ export default function PaywallScreen() {
   const [loading, setLoading] = useState(true)
   const [purchasing, setPurchasing] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(false)
-  const [currentPlan, setCurrentPlan] = useState<'free' | 'creator' | 'pro'>('free')
+  const [currentPlan, setCurrentPlan] = useState<PlanId>('free')
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
@@ -57,12 +79,14 @@ export default function PaywallScreen() {
     setLoading(false)
   }
 
-  function getPackage(planId: 'creator' | 'pro'): PurchasesPackage | undefined {
+  function getPackage(planId: 'solopreneur' | 'team'): PurchasesPackage | undefined {
     const suffix = cycle === 'annual' ? 'annual' : 'monthly'
-    return packages.find(p => p.product.identifier.includes(planId) && p.product.identifier.includes(suffix))
+    return packages.find(p =>
+      p.product.identifier.includes(planId) && p.product.identifier.includes(suffix)
+    )
   }
 
-  async function handlePurchase(planId: 'creator' | 'pro') {
+  async function handlePurchase(planId: 'solopreneur' | 'team') {
     const pkg = getPackage(planId)
     if (!pkg) {
       Alert.alert('Not available', 'This plan is not available yet. Check back soon.')
@@ -72,7 +96,8 @@ export default function PaywallScreen() {
     const result = await purchasePackage(pkg)
     setPurchasing(null)
     if (result.success) {
-      Alert.alert('Welcome!', `You're now on the ${planId === 'creator' ? 'Creator' : 'Pro'} plan.`, [
+      const label = PLAN_META[planId].title
+      Alert.alert('Welcome!', `You're now on the ${label} plan.`, [
         { text: 'Get started', onPress: () => router.back() },
       ])
     } else if (result.error) {
@@ -85,7 +110,8 @@ export default function PaywallScreen() {
     const plan = await restorePurchases()
     setRestoring(false)
     if (plan !== 'free') {
-      Alert.alert('Restored', `Your ${plan} plan has been restored.`, [
+      const label = plan === 'solopreneur' ? 'Solopreneur' : 'Team'
+      Alert.alert('Restored', `Your ${label} plan has been restored.`, [
         { text: 'Done', onPress: () => router.back() },
       ])
     } else {
@@ -93,14 +119,13 @@ export default function PaywallScreen() {
     }
   }
 
-  function priceLabel(planId: 'creator' | 'pro'): string {
+  function priceLabel(planId: 'solopreneur' | 'team'): string {
     const pkg = getPackage(planId)
-    if (!pkg) return cycle === 'annual' ? (planId === 'creator' ? '$79/yr' : '$159/yr') : (planId === 'creator' ? '$9/mo' : '$19/mo')
-    return pkg.localizedPriceString + (cycle === 'annual' ? '/yr' : '/mo')
-  }
-
-  function savingsLabel(planId: 'creator' | 'pro'): string {
-    return planId === 'creator' ? 'Save $29/yr' : 'Save $69/yr'
+    if (!pkg) {
+      const meta = PLAN_META[planId]
+      return cycle === 'annual' ? meta.fallbackAnnual : meta.fallbackMonthly
+    }
+    return pkg.product.priceString + (cycle === 'annual' ? '/yr' : '/mo')
   }
 
   return (
@@ -109,12 +134,12 @@ export default function PaywallScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Ionicons name="close" size={20} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Upgrade Grimoire</Text>
+        <Text style={styles.navTitle}>Upgrade Vibecoded</Text>
         <View style={{ width: 36 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.headline}>Unlock your full{'\n'}knowledge potential</Text>
+        <Text style={styles.headline}>Build and ship with{'\n'}full confidence</Text>
         <Text style={styles.sub}>Free forever for the basics. Upgrade when you're ready to grow.</Text>
 
         {/* Billing toggle */}
@@ -128,7 +153,11 @@ export default function PaywallScreen() {
               <Text style={[styles.cycleBtnText, cycle === c && styles.cycleBtnTextActive]}>
                 {c === 'monthly' ? 'Monthly' : 'Annual'}
               </Text>
-              {c === 'annual' && <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>SAVE 30%</Text></View>}
+              {c === 'annual' && (
+                <View style={styles.saveBadge}>
+                  <Text style={styles.saveBadgeText}>SAVE 30%</Text>
+                </View>
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -137,37 +166,43 @@ export default function PaywallScreen() {
           <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} />
         ) : (
           <>
-            {/* Creator Plan */}
-            <PlanCard
-              planId="creator"
-              title="Creator"
-              price={priceLabel('creator')}
-              savingsLabel={cycle === 'annual' ? savingsLabel('creator') : undefined}
-              features={PLAN_FEATURES.creator}
-              color={PLAN_COLORS.creator}
-              isCurrent={currentPlan === 'creator'}
-              loading={purchasing === 'creator'}
-              onPress={() => handlePurchase('creator')}
-            />
-
-            {/* Pro Plan */}
-            <PlanCard
-              planId="pro"
-              title="Pro"
-              price={priceLabel('pro')}
-              savingsLabel={cycle === 'annual' ? savingsLabel('pro') : undefined}
-              features={PLAN_FEATURES.pro}
-              color={PLAN_COLORS.pro}
-              isCurrent={currentPlan === 'pro'}
-              loading={purchasing === 'pro'}
-              onPress={() => handlePurchase('pro')}
-              highlighted
-            />
+            {(['solopreneur', 'team'] as const).map(planId => {
+              const meta = PLAN_META[planId]
+              return (
+                <PlanCard
+                  key={planId}
+                  planId={planId}
+                  title={meta.title}
+                  icon={meta.icon}
+                  price={priceLabel(planId)}
+                  savingsLabel={cycle === 'annual' ? meta.savingsLabel : undefined}
+                  features={meta.features}
+                  color={meta.color}
+                  badge={meta.badge}
+                  isCurrent={currentPlan === planId}
+                  loading={purchasing === planId}
+                  onPress={() => handlePurchase(planId)}
+                />
+              )
+            })}
 
             {/* Free tier reminder */}
             <View style={styles.freeTier}>
               <Ionicons name="checkmark-circle" size={16} color={Colors.textSecondary} />
-              <Text style={styles.freeTierText}>Free plan: unlimited captures, 3 public repos, Explore access. Always free.</Text>
+              <Text style={styles.freeTierText}>
+                Free plan: 10 captures/mo, 1 project, community read access. Always free.
+              </Text>
+            </View>
+
+            {/* Coming soon: Agency */}
+            <View style={styles.agencyTeaser}>
+              <View style={styles.agencyLeft}>
+                <Text style={styles.agencyTitle}>Agency / Pro</Text>
+                <Text style={styles.agencySub}>Unlimited seats, API access, custom domain</Text>
+              </View>
+              <View style={styles.soonBadge}>
+                <Text style={styles.soonText}>SOON</Text>
+              </View>
             </View>
           </>
         )}
@@ -179,7 +214,7 @@ export default function PaywallScreen() {
         </TouchableOpacity>
 
         <Text style={styles.legal}>
-          Payment processed by Apple. Subscriptions auto-renew unless cancelled 24h before the end of the billing period.
+          Payment processed by Apple. Subscriptions auto-renew unless cancelled 24h before the end of the billing period.{' '}
           Cancel anytime in Settings → Apple ID → Subscriptions.
         </Text>
       </ScrollView>
@@ -188,50 +223,58 @@ export default function PaywallScreen() {
 }
 
 function PlanCard({
-  planId, title, price, savingsLabel, features, color, isCurrent, loading, onPress, highlighted,
+  planId, title, icon, price, savingsLabel, features, color, badge, isCurrent, loading, onPress,
 }: {
   planId: string
   title: string
+  icon: 'person' | 'people'
   price: string
   savingsLabel?: string
-  features: { label: string; plans: string[] }[]
+  features: string[]
   color: string
+  badge?: string
   isCurrent: boolean
   loading: boolean
   onPress: () => void
-  highlighted?: boolean
 }) {
   return (
-    <View style={[styles.planCard, highlighted && styles.planCardHighlighted, { borderColor: color + '40' }]}>
-      {highlighted && (
+    <View style={[styles.planCard, badge && styles.planCardHighlighted, { borderColor: color + '40' }]}>
+      {badge && (
         <View style={[styles.popularBadge, { backgroundColor: color }]}>
-          <Text style={styles.popularText}>MOST POPULAR</Text>
+          <Text style={styles.popularText}>{badge}</Text>
         </View>
       )}
+
       <View style={styles.planHeader}>
         <View>
           <Text style={styles.planTitle}>{title}</Text>
           <View style={styles.priceRow}>
             <Text style={[styles.planPrice, { color }]}>{price}</Text>
-            {savingsLabel && <View style={[styles.savingsChip, { backgroundColor: color + '18' }]}>
-              <Text style={[styles.savingsText, { color }]}>{savingsLabel}</Text>
-            </View>}
+            {savingsLabel && (
+              <View style={[styles.savingsChip, { backgroundColor: color + '18' }]}>
+                <Text style={[styles.savingsText, { color }]}>{savingsLabel}</Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={[styles.planIcon, { backgroundColor: color + '18' }]}>
-          <Ionicons name={planId === 'creator' ? 'sparkles' : 'rocket'} size={22} color={color} />
+          <Ionicons name={icon} size={22} color={color} />
         </View>
       </View>
 
       {features.map(f => (
-        <View key={f.label} style={styles.featureRow}>
+        <View key={f} style={styles.featureRow}>
           <Ionicons name="checkmark" size={15} color={color} />
-          <Text style={styles.featureText}>{f.label}</Text>
+          <Text style={styles.featureText}>{f}</Text>
         </View>
       ))}
 
       <TouchableOpacity
-        style={[styles.upgradeBtn, { backgroundColor: isCurrent ? Colors.card : color }, isCurrent && { borderWidth: 1.5, borderColor: color }]}
+        style={[
+          styles.upgradeBtn,
+          { backgroundColor: isCurrent ? Colors.card : color },
+          isCurrent && { borderWidth: 1.5, borderColor: color },
+        ]}
         onPress={onPress}
         disabled={isCurrent || loading}
         activeOpacity={0.85}
@@ -261,6 +304,7 @@ const styles = StyleSheet.create({
   scroll: { padding: Spacing.lg, paddingBottom: 60 },
   headline: { fontSize: 28, fontWeight: '800', color: Colors.text, lineHeight: 36, marginBottom: Spacing.sm },
   sub: { ...Typography.cardBody, color: Colors.textSecondary, marginBottom: Spacing.xl, lineHeight: 22 },
+
   cycleRow: {
     flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg,
     backgroundColor: Colors.card, padding: 4, borderRadius: Radius.full, ...Shadow.card,
@@ -272,8 +316,12 @@ const styles = StyleSheet.create({
   cycleBtnActive: { backgroundColor: Colors.primary },
   cycleBtnText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
   cycleBtnTextActive: { color: Colors.card },
-  saveBadge: { backgroundColor: Colors.gold + '30', borderRadius: Radius.full, paddingHorizontal: 6, paddingVertical: 2 },
+  saveBadge: {
+    backgroundColor: Colors.gold + '30', borderRadius: Radius.full,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
   saveBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.gold },
+
   planCard: {
     backgroundColor: Colors.card, borderRadius: Radius.xl,
     padding: Spacing.lg, marginBottom: Spacing.md,
@@ -286,7 +334,11 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: Radius.md,
   },
   popularText: { fontSize: 9, fontWeight: '700', color: '#fff', letterSpacing: 0.5 },
-  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.md },
+
+  planHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'flex-start', marginBottom: Spacing.md,
+  },
   planTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 4 },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   planPrice: { fontSize: 22, fontWeight: '700' },
@@ -296,19 +348,38 @@ const styles = StyleSheet.create({
     width: 48, height: 48, borderRadius: Radius.lg,
     alignItems: 'center', justifyContent: 'center',
   },
+
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  featureText: { ...Typography.cardBody, color: Colors.text },
+  featureText: { ...Typography.cardBody, color: Colors.text, flex: 1 },
+
   upgradeBtn: {
     borderRadius: Radius.full, paddingVertical: 14,
     alignItems: 'center', justifyContent: 'center', marginTop: Spacing.md,
   },
   upgradeBtnText: { fontSize: 15, fontWeight: '700' },
+
   freeTier: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     backgroundColor: Colors.card, borderRadius: Radius.lg,
     padding: Spacing.md, marginTop: Spacing.sm, ...Shadow.card,
   },
   freeTierText: { ...Typography.caption, color: Colors.textSecondary, flex: 1, lineHeight: 18 },
+
+  agencyTeaser: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.card, borderRadius: Radius.lg,
+    padding: Spacing.md, marginTop: Spacing.sm, ...Shadow.card,
+    borderWidth: 1, borderColor: Colors.border, opacity: 0.7,
+  },
+  agencyLeft: { flex: 1 },
+  agencyTitle: { fontSize: 15, fontWeight: '700', color: Colors.text },
+  agencySub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  soonBadge: {
+    backgroundColor: Colors.accent + '20', borderRadius: Radius.full,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  soonText: { fontSize: 9, fontWeight: '700', color: Colors.accent, letterSpacing: 0.8 },
+
   restoreBtn: { alignItems: 'center', paddingVertical: Spacing.lg },
   restoreText: { ...Typography.caption, color: Colors.primary, fontWeight: '600' },
   legal: {

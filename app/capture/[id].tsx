@@ -178,7 +178,7 @@ export default function CaptureDetail() {
     if (!capture) return
     await Share.share({
       title: capture.title,
-      message: `${capture.title}\n\n${capture.preview}\n\nShared from Grimoire`,
+      message: `${capture.title}\n\n${capture.preview}\n\nShared from Vibecoded`,
     })
   }
 

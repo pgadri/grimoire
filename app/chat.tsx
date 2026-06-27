@@ -85,7 +85,7 @@ export default function ChatScreen() {
     } catch {
       setMessages(prev => prev.map(m =>
         m.id === thinkingMsg.id
-          ? { ...m, text: 'Could not reach Grimoire AI. Check your connection and try again.', loading: false }
+          ? { ...m, text: 'Could not reach Vibecoded AI. Check your connection and try again.', loading: false }
           : m
       ))
     } finally {
@@ -101,7 +101,7 @@ export default function ChatScreen() {
           <Ionicons name="arrow-back" size={20} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Chat with Grimoire</Text>
+          <Text style={styles.title}>Chat with Vibecoded</Text>
           <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>AI</Text></View>
         </View>
         <View style={{ width: 36 }} />
@@ -123,7 +123,7 @@ export default function ChatScreen() {
               <View style={styles.emptyIcon}>
                 <Text style={styles.emptyIconText}>✦</Text>
               </View>
-              <Text style={styles.emptyTitle}>Ask your Grimoire anything</Text>
+              <Text style={styles.emptyTitle}>Ask Vibecoded anything</Text>
               <Text style={styles.emptySub}>
                 I'll answer from your captured knowledge — {MOCK_CAPTURES.length} captures in your library.
               </Text>

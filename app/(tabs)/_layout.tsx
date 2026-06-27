@@ -30,13 +30,6 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Feed',
-          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'flash' : 'flash-outline'} focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
         name="maps"
         options={{
           title: 'Repo',
@@ -44,10 +37,24 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Feed',
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'flash' : 'flash-outline'} focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="discover"
         options={{
           title: 'Community',
           tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'people' : 'people-outline'} focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="services"
+        options={{
+          title: 'Services',
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'briefcase' : 'briefcase-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen

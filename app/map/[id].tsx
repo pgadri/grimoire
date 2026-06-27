@@ -103,7 +103,7 @@ export default function MapGraphScreen() {
     ).join('\n\n')
     await Share.share({
       title: `${mapEmoji} ${mapTitle}`,
-      message: `${mapEmoji} ${mapTitle}\n\n${lines}\n\n— Shared from Grimoire`,
+      message: `${mapEmoji} ${mapTitle}\n\n${lines}\n\n— Shared from Vibecoded`,
     })
   }
 

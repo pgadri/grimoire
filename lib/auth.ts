@@ -13,6 +13,13 @@ export type GrimoireUser = {
   githubUsername?: string
   avatarUrl?: string
   createdAt?: string
+  creatorMode?: boolean
+  youtubeUrl?: string
+  twitterUrl?: string
+  newsletterUrl?: string
+  websiteUrl?: string
+  followerCount?: number
+  followingCount?: number
 }
 
 // ─── Token ───────────────────────────────────────────────────────────────────
@@ -127,6 +134,42 @@ export async function refreshUser(): Promise<GrimoireUser | null> {
   } catch {
     return getUser()
   }
+}
+
+export async function signInWithGithub(code: string, redirectUri: string): Promise<GrimoireUser> {
+  const res = await fetch(`${API_BASE}/auth/github`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, redirect_uri: redirectUri }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.detail ?? 'GitHub sign-in failed')
+  await saveToken(data.token)
+  await saveUser(data.user)
+  return data.user
+}
+
+export async function signInWithApple(params: {
+  identityToken: string
+  appleUserId: string
+  name: string | null
+  email: string | null
+}): Promise<GrimoireUser> {
+  const res = await fetch(`${API_BASE}/auth/apple`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identity_token: params.identityToken,
+      apple_user_id: params.appleUserId,
+      name: params.name,
+      email: params.email,
+    }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.detail ?? 'Apple sign-in failed')
+  await saveToken(data.token)
+  await saveUser(data.user)
+  return data.user
 }
 
 export async function signOut(): Promise<void> {

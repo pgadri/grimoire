@@ -6,11 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState } from 'react'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../constants/theme'
-import { createThread } from '../lib/community'
+import { createThread } from '../lib/threads'
+import { checkThreadLimit, incrementThreadCount, limitMessage } from '../lib/limits'
 
-const USER_KEY = 'grimoire:user'
 const TAGS = ['auth', 'payments', 'deployment', 'ux', 'marketing', 'growth', 'pricing', 'technical', 'other']
 
 export default function NewThreadScreen() {
@@ -37,23 +36,28 @@ export default function NewThreadScreen() {
       Alert.alert('Add context', "The more detail you share, the better answers you'll get.")
       return
     }
+    const limitResult = await checkThreadLimit()
+    if (limitResult.blocked) {
+      Alert.alert(
+        'Thread limit reached',
+        limitMessage(limitResult),
+        [
+          { text: 'Upgrade', onPress: () => router.push('/paywall' as any) },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      )
+      return
+    }
     setSubmitting(true)
     try {
-      const raw = await AsyncStorage.getItem(USER_KEY)
-      const user = raw ? JSON.parse(raw) : null
-      const authorName = user?.name ?? 'You'
-
-      await createThread({
-        captureId: captureId ?? undefined,
-        captureTitle: captureTitle ?? undefined,
-        title: title.trim(),
-        body: body.trim(),
-        authorName,
-        tags: selectedTags,
-      })
+      const fullBody = captureTitle
+        ? `From: ${captureTitle}\n\n${body.trim()}`
+        : body.trim()
+      await createThread({ title: title.trim(), body: fullBody, tags: selectedTags })
+      await incrementThreadCount()
       router.back()
-    } catch {
-      Alert.alert('Error', 'Could not post thread.')
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not post thread.')
     } finally {
       setSubmitting(false)
     }

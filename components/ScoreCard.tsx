@@ -30,8 +30,8 @@ export function ScoreCard({ visible, onClose, score, name, criticals, highs, med
     const issueText = issueLines ? `\n${issueLines} issues to fix` : '\nNo issues found'
     await Share.share({
       message:
-        `${name} scored ${score}/100 on Launch Readiness${issueText}\n\nChecked with Grimoire — the launch confidence tool for vibe coders.\ngrimoire.app`,
-      title: `${name} · ${score}/100 on Grimoire`,
+        `${name} scored ${score}/100 on Launch Readiness${issueText}\n\nChecked with Vibecoded — the launch confidence tool for vibe coders.\nvibecoded.tech`,
+      title: `${name} · ${score}/100 on Vibecoded`,
     })
   }
 
@@ -49,7 +49,7 @@ export function ScoreCard({ visible, onClose, score, name, criticals, highs, med
               <View style={styles.logoMark}>
                 <Text style={styles.logoText}>✦</Text>
               </View>
-              <Text style={styles.brandName}>grimoire</Text>
+              <Text style={styles.brandName}>vibecoded</Text>
               <Text style={styles.cardLabel}>
                 {source === 'scan' ? 'Repo Scan' : 'Launch Readiness'}
               </Text>
@@ -88,7 +88,7 @@ export function ScoreCard({ visible, onClose, score, name, criticals, highs, med
               })}
             </View>
 
-            <Text style={styles.footerUrl}>grimoire.app</Text>
+            <Text style={styles.footerUrl}>vibecoded.tech</Text>
           </View>
 
           {/* Actions */}

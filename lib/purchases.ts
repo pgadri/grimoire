@@ -10,20 +10,20 @@ const RC_IOS_KEY = 'test_CkKEQaKegsQOVhggcijjaRuVyyD'
 const RC_ANDROID_KEY = 'test_CkKEQaKegsQOVhggcijjaRuVyyD'
 
 export const ENTITLEMENTS = {
-  CREATOR: 'creator',
-  PRO: 'pro',
+  SOLOPRENEUR: 'solopreneur',
+  TEAM: 'team',
 } as const
 
 export type EntitlementId = typeof ENTITLEMENTS[keyof typeof ENTITLEMENTS]
 
 export const PRODUCT_IDS = {
-  CREATOR_MONTHLY: 'grimoire_creator_monthly',
-  CREATOR_ANNUAL: 'grimoire_creator_annual',
-  PRO_MONTHLY: 'grimoire_pro_monthly',
-  PRO_ANNUAL: 'grimoire_pro_annual',
+  SOLOPRENEUR_MONTHLY: 'vibecoded_solopreneur_monthly',
+  SOLOPRENEUR_ANNUAL:  'vibecoded_solopreneur_annual',
+  TEAM_MONTHLY:        'vibecoded_team_monthly',
+  TEAM_ANNUAL:         'vibecoded_team_annual',
 } as const
 
-export type PlanId = 'free' | 'creator' | 'pro'
+export type PlanId = 'free' | 'solopreneur' | 'team'
 
 export function initPurchases(userId?: string) {
   Purchases.setLogLevel(LOG_LEVEL.ERROR)
@@ -42,8 +42,8 @@ export async function getCustomerInfo(): Promise<CustomerInfo | null> {
 export async function getActivePlan(info?: CustomerInfo | null): Promise<PlanId> {
   const ci = info ?? await getCustomerInfo()
   if (!ci) return 'free'
-  if (ci.entitlements.active[ENTITLEMENTS.PRO]) return 'pro'
-  if (ci.entitlements.active[ENTITLEMENTS.CREATOR]) return 'creator'
+  if (ci.entitlements.active[ENTITLEMENTS.TEAM]) return 'team'
+  if (ci.entitlements.active[ENTITLEMENTS.SOLOPRENEUR]) return 'solopreneur'
   return 'free'
 }
 

@@ -53,7 +53,7 @@ export default function NewLaunchScreen() {
       const raw = await AsyncStorage.getItem(USER_KEY)
       const user = raw ? JSON.parse(raw) : null
       const tagList = tags.split(',').map(t => t.trim()).filter(Boolean)
-      await createProduct({
+      const product = await createProduct({
         name: name.trim(),
         tagline: tagline.trim(),
         description: description.trim(),
@@ -63,10 +63,9 @@ export default function NewLaunchScreen() {
         logoEmoji,
         tags: tagList,
         lookingFor,
-        authorName: user?.name ?? 'You',
       })
       await awardPoints('product_launched', `Launched ${name.trim()}`)
-      router.back()
+      router.replace(`/launch/${product.id}` as any)
     } catch {
       Alert.alert('Error', 'Could not submit launch.')
     } finally {

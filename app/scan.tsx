@@ -111,7 +111,7 @@ export default function ScanScreen() {
             </View>
             <Text style={styles.heroTitle}>GitHub repo scanner</Text>
             <Text style={styles.heroSub}>
-              Drop any public GitHub repo URL and Grimoire will surface launch risks in seconds.
+              Drop any public GitHub repo URL and Vibecoded will surface launch risks in seconds.
             </Text>
           </View>
 

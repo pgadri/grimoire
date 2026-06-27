@@ -1,5 +1,6 @@
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  ActivityIndicator, RefreshControl,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,15 +10,85 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../../constants/theme'
 import type { Capture } from '../../components/CaptureCard'
 import {
-  getReactions, toggleReaction, getThreads, getProducts, toggleProductUpvote,
-  formatRelTime, STAGE_LABEL, REVIEW_TYPE_LABEL,
-  type CaptureReaction, type StuckThread, type Product,
+  getReactions, toggleReaction, getProducts, toggleProductUpvote,
+  getPublicCaptures,
+  STAGE_LABEL, REVIEW_TYPE_LABEL,
+  type CaptureReaction, type Product, type PublicCapture,
 } from '../../lib/community'
+import { getThreads, voteThread, formatRelTime, type Thread } from '../../lib/threads'
+import { getPackets, PACKET_CATEGORIES, categoryEmoji, type Packet } from '../../lib/packets'
 import { awardPoints } from '../../lib/reputation'
 
 const CAPTURES_KEY = 'grimoire:captures'
 
 const CATEGORIES = ['All', 'Technical', 'Marketing', 'Launch', 'Pricing', 'Founder', 'Product']
+
+const FEATURED_CAPTURES = [
+  {
+    id: 'vc-f1',
+    title: 'The pre-launch content playbook that got 2,000 waitlist signups',
+    sourceUrl: '',
+    sourceType: 'video' as const,
+    creator: '@vibecoded',
+    platform: 'Vibecoded',
+    date: 'Jun 26',
+    stars: 312,
+    starred: false,
+    isPublic: true,
+    pushed: true,
+    pinned: false,
+    category: 'Marketing',
+    preview: '• Start building in public 8 weeks before launch — not 8 days\n• One short-form video per day showing your build process converts better than polished ads\n• Email waitlist weekly — 40% of signups forget they signed up within 2 weeks',
+  },
+  {
+    id: 'vc-f2',
+    title: 'Why your App Store screenshots are costing you 60% of downloads',
+    sourceUrl: '',
+    sourceType: 'image' as const,
+    creator: '@vibecoded',
+    platform: 'Vibecoded',
+    date: 'Jun 26',
+    stars: 198,
+    starred: false,
+    isPublic: true,
+    pushed: true,
+    pinned: false,
+    category: 'Launch',
+    preview: '• Screenshot 1 must show the outcome, not the UI — users scan in <2 seconds\n• Use real device mockups, not blank screens — trust signals matter\n• Test two screenshot sets before launch — A/B testing costs nothing on TestFlight',
+  },
+  {
+    id: 'vc-f3',
+    title: 'Supabase RLS misconfiguration exposed 3,000 users — here\'s what happened',
+    sourceUrl: '',
+    sourceType: 'video' as const,
+    creator: '@vibecoded',
+    platform: 'Vibecoded',
+    date: 'Jun 25',
+    stars: 441,
+    starred: false,
+    isPublic: true,
+    pushed: true,
+    pinned: false,
+    category: 'Technical',
+    preview: '• Row Level Security is OFF by default on every Supabase table — you must enable it manually\n• The public anon key ships in your app — anyone can use it without RLS\n• Fix: enable RLS on every table and write policies before your first real user signs up',
+  },
+  {
+    id: 'vc-f4',
+    title: 'Pricing your first app: the $4.99 trap and how to avoid it',
+    sourceUrl: '',
+    sourceType: 'video' as const,
+    creator: '@vibecoded',
+    platform: 'Vibecoded',
+    date: 'Jun 24',
+    stars: 267,
+    starred: false,
+    isPublic: true,
+    pushed: true,
+    pinned: false,
+    category: 'Pricing',
+    preview: '• Free attracts users who never convert — start at $4.99 minimum\n• Annual plans lock in revenue and reduce churn by 60%\n• Raise prices after your first 50 paying users — early adopters will tell you what it\'s worth',
+  },
+]
 
 const CATEGORY_ICON: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
   Technical: 'code-slash-outline',
@@ -37,27 +108,59 @@ const CATEGORY_COLOR: Record<string, string> = {
   product: '#5E7A2A',
 }
 
-type CommunityTab = 'captures' | 'threads' | 'launches'
+type CommunityTab = 'captures' | 'threads' | 'launches' | 'knowledge'
 
 export default function ExploreScreen() {
   const router = useRouter()
   const [communityTab, setCommunityTab] = useState<CommunityTab>('captures')
   const [captures, setCaptures] = useState<Capture[]>([])
+  const [publicCaptures, setPublicCaptures] = useState<PublicCapture[]>([])
   const [reactions, setReactions] = useState<Record<string, CaptureReaction>>({})
-  const [threads, setThreads] = useState<StuckThread[]>([])
+  const [threads, setThreads] = useState<Thread[]>([])
+  const [threadsLoading, setThreadsLoading] = useState(false)
+  const [threadsRefreshing, setThreadsRefreshing] = useState(false)
+  const [threadsError, setThreadsError] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
+  const [productsError, setProductsError] = useState(false)
+  const [packets, setPackets] = useState<Packet[]>([])
+  const [packetsLoading, setPacketsLoading] = useState(false)
+  const [activePacketCat, setActivePacketCat] = useState<string | undefined>(undefined)
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
+
+  const loadThreads = useCallback(async (refresh = false) => {
+    if (refresh) setThreadsRefreshing(true)
+    else setThreadsLoading(true)
+    setThreadsError(false)
+    try {
+      const data = await getThreads()
+      setThreads(data)
+    } catch {
+      setThreadsError(true)
+    } finally {
+      if (refresh) setThreadsRefreshing(false)
+      else setThreadsLoading(false)
+    }
+  }, [])
+
+  const loadPackets = useCallback(async (cat?: string) => {
+    setPacketsLoading(true)
+    const data = await getPackets(cat)
+    setPackets(data)
+    setPacketsLoading(false)
+  }, [])
 
   useFocusEffect(useCallback(() => {
     AsyncStorage.getItem(CAPTURES_KEY).then(raw => {
       const all: Capture[] = raw ? JSON.parse(raw) : []
       setCaptures(all.filter(c => c.isPublic))
     })
+    getPublicCaptures().then(setPublicCaptures)
     getReactions().then(setReactions)
-    getThreads().then(setThreads)
-    getProducts().then(setProducts)
-  }, []))
+    loadThreads()
+    getProducts().then(setProducts).catch(() => setProductsError(true))
+    loadPackets()
+  }, [loadThreads]))
 
   const handleReact = async (captureId: string, type: 'fire' | 'insightful') => {
     const updated = await toggleReaction(captureId, type)
@@ -67,8 +170,10 @@ export default function ExploreScreen() {
   }
 
   const handleProductUpvote = async (productId: string) => {
-    await toggleProductUpvote(productId)
-    getProducts().then(setProducts)
+    const result = await toggleProductUpvote(productId)
+    setProducts(prev => prev.map(p =>
+      p.id === productId ? { ...p, myUpvote: result.myUpvote, upvotes: result.upvotes } : p
+    ))
   }
 
   const filtered = captures.filter(c => {
@@ -83,15 +188,21 @@ export default function ExploreScreen() {
 
   const hasCaptures = captures.length > 0
 
-  const actionLabel = communityTab === 'threads' ? 'Ask' : communityTab === 'launches' ? 'Launch' : 'Share'
+  const actionLabel = communityTab === 'threads' ? 'Ask'
+    : communityTab === 'launches' ? 'Launch'
+    : communityTab === 'knowledge' ? 'Create'
+    : 'Share'
   const actionIcon: React.ComponentProps<typeof Ionicons>['name'] = communityTab === 'threads'
     ? 'help-circle-outline'
     : communityTab === 'launches'
     ? 'rocket-outline'
+    : communityTab === 'knowledge'
+    ? 'add-circle-outline'
     : 'add'
   const handleAction = () => {
     if (communityTab === 'threads') router.push('/new-thread' as any)
     else if (communityTab === 'launches') router.push('/new-launch' as any)
+    else if (communityTab === 'knowledge') router.push('/packet-editor' as any)
     else router.push('/' as any)
   }
 
@@ -109,18 +220,23 @@ export default function ExploreScreen() {
       </View>
 
       <View style={styles.communityTabs}>
-        {(['captures', 'threads', 'launches'] as CommunityTab[]).map(t => (
+        {([
+          { id: 'captures', label: 'Captures' },
+          { id: 'threads', label: 'Threads' },
+          { id: 'launches', label: 'Launches' },
+          { id: 'knowledge', label: 'Packets' },
+        ] as { id: CommunityTab; label: string }[]).map(t => (
           <TouchableOpacity
-            key={t}
-            style={[styles.communityTab, communityTab === t && styles.communityTabActive]}
-            onPress={() => setCommunityTab(t)}
+            key={t.id}
+            style={[styles.communityTab, communityTab === t.id && styles.communityTabActive]}
+            onPress={() => setCommunityTab(t.id)}
           >
-            <Text style={[styles.communityTabText, communityTab === t && styles.communityTabTextActive]}>
-              {t === 'captures' ? 'Captures' : t === 'threads' ? 'Threads' : 'Launches'}
+            <Text style={[styles.communityTabText, communityTab === t.id && styles.communityTabTextActive]}>
+              {t.label}
             </Text>
-            {t === 'threads' && threads.filter(th => !th.resolved).length > 0 && (
+            {t.id === 'threads' && threads.filter(th => !th.isResolved).length > 0 && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{threads.filter(th => !th.resolved).length}</Text>
+                <Text style={styles.badgeText}>{threads.filter(th => !th.isResolved).length}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -128,7 +244,12 @@ export default function ExploreScreen() {
       </View>
 
       {communityTab === 'captures' && (
-        <>
+        <ScrollView
+          style={styles.flex1}
+          contentContainerStyle={styles.capturesOuter}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.searchRow}>
             <Ionicons name="search-outline" size={16} color={Colors.textSecondary} />
             <TextInput
@@ -171,103 +292,188 @@ export default function ExploreScreen() {
             ))}
           </ScrollView>
 
-          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-            {!hasCaptures ? (
-              <View style={styles.empty}>
-                <View style={styles.emptyHero}>
-                  <Text style={styles.emptyHeroEmoji}>🏗️</Text>
-                  <Text style={styles.emptyTitle}>Be the first to share</Text>
-                  <Text style={styles.emptyBody}>
-                    Open any capture, tap{' '}
-                    <Ionicons name="globe-outline" size={13} color={Colors.textSecondary} />
-                    {' '}to make it public.
-                  </Text>
-                </View>
-                <View style={styles.communityHint}>
-                  <Ionicons name="people-outline" size={16} color={Colors.primary} />
-                  <Text style={styles.communityHintText}>
-                    The best apps get built faster when builders share what they know.
-                  </Text>
-                </View>
-              </View>
-            ) : filtered.length === 0 ? (
-              <View style={styles.empty}>
-                <Text style={styles.emptyTitle}>No captures match</Text>
-                <Text style={styles.emptyBody}>Try a different search or category.</Text>
-              </View>
-            ) : (
-              <>
-                {activeCategory === 'All' && !search && (
-                  <>
-                    <Text style={styles.sectionLabel}>🔥 TRENDING</Text>
-                    {[...filtered].sort((a, b) => b.stars - a.stars).slice(0, 2).map(capture => (
-                      <ExploreCard
-                        key={`t-${capture.id}`}
-                        capture={capture}
-                        reaction={reactions[capture.id]}
-                        onPress={() => router.push(`/capture/${capture.id}`)}
-                        onReact={handleReact}
-                        featured
-                      />
-                    ))}
-                    <Text style={styles.sectionLabel}>ALL CAPTURES</Text>
-                  </>
-                )}
-                {filtered.map(capture => (
-                  <ExploreCard
-                    key={capture.id}
-                    capture={capture}
-                    reaction={reactions[capture.id]}
-                    onPress={() => router.push(`/capture/${capture.id}`)}
-                    onReact={handleReact}
-                  />
-                ))}
-              </>
-            )}
-          </ScrollView>
-        </>
+          {/* Featured content always visible */}
+          {activeCategory === 'All' && !search && (
+            <>
+              <Text style={styles.sectionLabel}>📌 FROM VIBECODED</Text>
+              {FEATURED_CAPTURES.map(capture => (
+                <ExploreCard
+                  key={capture.id}
+                  capture={capture}
+                  reaction={reactions[capture.id]}
+                  onPress={() => {}}
+                  onReact={() => {}}
+                  featured
+                />
+              ))}
+            </>
+          )}
+
+          {/* Community captures from backend */}
+          {activeCategory === 'All' && !search && publicCaptures.length > 0 && (
+            <>
+              <Text style={[styles.sectionLabel, { marginTop: 16 }]}>🔥 FROM THE COMMUNITY</Text>
+              {publicCaptures.map(c => (
+                <ExploreCard
+                  key={c.id}
+                  capture={{
+                    id: c.id,
+                    title: c.title,
+                    sourceUrl: c.sourceUrl ?? '',
+                    sourceType: (c.sourceType as any) ?? 'video',
+                    creator: c.creator ?? c.authorName,
+                    platform: c.platform ?? 'Vibecoded',
+                    date: new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                    stars: 0,
+                    starred: false,
+                    isPublic: true,
+                    pushed: true,
+                    pinned: false,
+                    preview: c.preview,
+                    category: c.category ?? undefined,
+                  }}
+                  reaction={reactions[c.id]}
+                  onPress={() => {}}
+                  onReact={() => {}}
+                />
+              ))}
+            </>
+          )}
+
+          {/* Local public captures from this device */}
+          {filtered.length === 0 && !search && publicCaptures.length === 0 ? (
+            <View style={styles.communityHint}>
+              <Ionicons name="people-outline" size={16} color={Colors.primary} />
+              <Text style={styles.communityHintText}>
+                Open any of your captures and tap the globe icon to share it with the community.
+              </Text>
+            </View>
+          ) : filtered.length === 0 && search ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>No captures match</Text>
+              <Text style={styles.emptyBody}>Try a different search or category.</Text>
+            </View>
+          ) : filtered.length > 0 ? (
+            <>
+              {activeCategory === 'All' && !search && (
+                <Text style={styles.sectionLabel}>📱 YOUR PUBLIC CAPTURES</Text>
+              )}
+              {filtered.map(capture => (
+                <ExploreCard
+                  key={capture.id}
+                  capture={capture}
+                  reaction={reactions[capture.id]}
+                  onPress={() => router.push(`/capture/${capture.id}`)}
+                  onReact={handleReact}
+                />
+              ))}
+            </>
+          ) : null}
+        </ScrollView>
       )}
 
       {communityTab === 'threads' && (
+        threadsLoading ? (
+          <View style={styles.threadsLoading}>
+            <ActivityIndicator color={Colors.primary} />
+            <Text style={styles.threadsLoadingText}>Loading threads…</Text>
+          </View>
+        ) : threadsError ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyHeroEmoji}>⚠️</Text>
+            <Text style={styles.emptyTitle}>Couldn't load threads</Text>
+            <Text style={styles.emptyBody}>Check your connection and try again.</Text>
+            <TouchableOpacity style={styles.emptyAction} onPress={() => loadThreads()}>
+              <Text style={styles.emptyActionText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={threadsRefreshing}
+                onRefresh={() => loadThreads(true)}
+                tintColor={Colors.primary}
+              />
+            }
+          >
+            {threads.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyHeroEmoji}>🤔</Text>
+                <Text style={styles.emptyTitle}>No threads yet</Text>
+                <Text style={styles.emptyBody}>
+                  Hit a wall? Post a thread. Other builders who faced the same thing will answer.
+                </Text>
+                <TouchableOpacity style={styles.emptyAction} onPress={() => router.push('/new-thread' as any)}>
+                  <Text style={styles.emptyActionText}>Ask the community</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              threads.map(thread => (
+                <RedditThreadCard
+                  key={thread.id}
+                  thread={thread}
+                  onPress={() => router.push(`/thread/${thread.id}` as any)}
+                  onVote={async (v) => {
+                    const res = await voteThread(thread.id, v)
+                    setThreads(prev => prev.map(t => t.id === thread.id
+                      ? { ...t, upvotes: res.upvotes, myVote: res.myVote }
+                      : t
+                    ))
+                  }}
+                />
+              ))
+            )}
+          </ScrollView>
+        )
+      )}
+
+      {communityTab === 'knowledge' && (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {threads.length === 0 ? (
+          <View style={styles.launchHeader}>
+            <Text style={styles.launchHeaderTitle}>Knowledge Packets</Text>
+            <Text style={styles.launchHeaderSub}>Expert knowledge, structured for builders</Text>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScroll}
+            style={styles.filterRow}
+          >
+            {[{ id: undefined, label: 'All', emoji: '📦' }, ...PACKET_CATEGORIES].map(c => (
+              <TouchableOpacity
+                key={c.id ?? 'all'}
+                style={[styles.filterChip, activePacketCat === c.id && styles.filterChipActive]}
+                onPress={() => {
+                  setActivePacketCat(c.id)
+                  loadPackets(c.id)
+                }}
+              >
+                <Text style={styles.filterChipText}>{c.emoji} {c.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {packetsLoading ? (
+            <View style={styles.threadsLoading}>
+              <ActivityIndicator color={Colors.primary} />
+            </View>
+          ) : packets.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyHeroEmoji}>🤔</Text>
-              <Text style={styles.emptyTitle}>No threads yet</Text>
+              <Text style={styles.emptyHeroEmoji}>📦</Text>
+              <Text style={styles.emptyTitle}>No packets yet</Text>
               <Text style={styles.emptyBody}>
-                Hit a wall? Post a thread. Other builders who faced the same thing will answer.
+                Creators publish structured knowledge packets here. Be the first — tap Create above.
               </Text>
-              <TouchableOpacity style={styles.emptyAction} onPress={() => router.push('/new-thread' as any)}>
-                <Text style={styles.emptyActionText}>Ask the community</Text>
+              <TouchableOpacity style={styles.emptyAction} onPress={() => router.push('/creator-apply' as any)}>
+                <Text style={styles.emptyActionText}>Apply to be a creator</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <>
-              {threads.filter(t => !t.resolved).length > 0 && (
-                <>
-                  <Text style={styles.sectionLabel}>OPEN</Text>
-                  {threads.filter(t => !t.resolved).map(thread => (
-                    <ThreadCard
-                      key={thread.id}
-                      thread={thread}
-                      onPress={() => router.push(`/thread/${thread.id}` as any)}
-                    />
-                  ))}
-                </>
-              )}
-              {threads.filter(t => t.resolved).length > 0 && (
-                <>
-                  <Text style={styles.sectionLabel}>RESOLVED</Text>
-                  {threads.filter(t => t.resolved).map(thread => (
-                    <ThreadCard
-                      key={thread.id}
-                      thread={thread}
-                      onPress={() => router.push(`/thread/${thread.id}` as any)}
-                    />
-                  ))}
-                </>
-              )}
-            </>
+            packets.map(p => <PacketCard key={p.id} packet={p} onPress={() => router.push(`/packet/${p.id}` as any)} />)
           )}
         </ScrollView>
       )}
@@ -280,7 +486,22 @@ export default function ExploreScreen() {
               Ship your product · get real feedback · find testers
             </Text>
           </View>
-          {products.length === 0 ? (
+          {productsError ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyHeroEmoji}>⚠️</Text>
+              <Text style={styles.emptyTitle}>Couldn't load launches</Text>
+              <Text style={styles.emptyBody}>Check your connection and try again.</Text>
+              <TouchableOpacity
+                style={styles.emptyAction}
+                onPress={() => {
+                  setProductsError(false)
+                  getProducts().then(setProducts).catch(() => setProductsError(true))
+                }}
+              >
+                <Text style={styles.emptyActionText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : products.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyHeroEmoji}>🚀</Text>
               <Text style={styles.emptyTitle}>No launches yet</Text>
@@ -393,40 +614,83 @@ function ExploreCard({
   )
 }
 
-function ThreadCard({ thread, onPress }: { thread: StuckThread; onPress: () => void }) {
+function RedditThreadCard({
+  thread, onPress, onVote,
+}: {
+  thread: Thread
+  onPress: () => void
+  onVote: (v: 1 | -1) => void
+}) {
   return (
-    <TouchableOpacity style={[styles.threadCard, thread.resolved && styles.threadCardResolved]} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.threadCardHeader}>
-        {thread.captureTitle && (
-          <View style={styles.threadAnchor}>
-            <Ionicons name="link-outline" size={11} color={Colors.primary} />
-            <Text style={styles.threadAnchorText} numberOfLines={1}>{thread.captureTitle}</Text>
-          </View>
-        )}
-        {thread.resolved && (
-          <View style={styles.resolvedChip}>
-            <Ionicons name="checkmark-circle" size={11} color={Colors.success} />
-            <Text style={styles.resolvedChipText}>Resolved</Text>
-          </View>
-        )}
-      </View>
-      <Text style={styles.threadTitle} numberOfLines={2}>{thread.title}</Text>
-      <View style={styles.threadFooter}>
-        <Text style={styles.threadMeta}>{thread.authorName} · {formatRelTime(thread.createdAt)}</Text>
-        <View style={styles.replyStat}>
-          <Ionicons name="chatbubble-outline" size={12} color={Colors.textSecondary} />
-          <Text style={styles.replyCount}>{thread.replies.length}</Text>
+    <TouchableOpacity style={styles.redditCard} onPress={onPress} activeOpacity={0.88}>
+      {/* Author row */}
+      <View style={styles.redditMeta}>
+        <View style={styles.redditAvatar}>
+          <Text style={styles.redditAvatarText}>{thread.authorName.charAt(0).toUpperCase()}</Text>
         </View>
+        <Text style={styles.redditAuthor}>
+          {thread.authorHandle ? `@${thread.authorHandle}` : thread.authorName}
+        </Text>
+        <Text style={styles.redditDot}>·</Text>
+        <Text style={styles.redditTime}>{formatRelTime(thread.createdAt)}</Text>
+        {thread.isResolved && (
+          <>
+            <Text style={styles.redditDot}>·</Text>
+            <View style={styles.resolvedPill}>
+              <Ionicons name="checkmark-circle" size={10} color={Colors.success} />
+              <Text style={styles.resolvedPillText}>Resolved</Text>
+            </View>
+          </>
+        )}
       </View>
+
+      {/* Title */}
+      <Text style={styles.redditTitle} numberOfLines={2}>{thread.title}</Text>
+
+      {/* Tags */}
       {thread.tags.length > 0 && (
-        <View style={styles.threadTagRow}>
+        <View style={styles.redditTagRow}>
           {thread.tags.slice(0, 3).map(tag => (
-            <View key={tag} style={styles.threadTag}>
-              <Text style={styles.threadTagText}>{tag}</Text>
+            <View key={tag} style={styles.redditTag}>
+              <Text style={styles.redditTagText}>{tag}</Text>
             </View>
           ))}
         </View>
       )}
+
+      {/* Footer actions */}
+      <View style={styles.redditFooter}>
+        <View style={styles.redditVoteRow}>
+          <TouchableOpacity
+            style={[styles.redditVoteBtn, thread.myVote === 1 && styles.redditVoteBtnUp]}
+            onPress={e => { e.stopPropagation?.(); onVote(1) }}
+          >
+            <Ionicons
+              name="arrow-up"
+              size={14}
+              color={thread.myVote === 1 ? '#fff' : Colors.textSecondary}
+            />
+          </TouchableOpacity>
+          <Text style={[styles.redditVoteCount, thread.myVote != null && styles.redditVoteCountActive]}>
+            {thread.upvotes}
+          </Text>
+          <TouchableOpacity
+            style={[styles.redditVoteBtn, thread.myVote === -1 && styles.redditVoteBtnDown]}
+            onPress={e => { e.stopPropagation?.(); onVote(-1) }}
+          >
+            <Ionicons
+              name="arrow-down"
+              size={14}
+              color={thread.myVote === -1 ? '#fff' : Colors.textSecondary}
+            />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.redditCommentRow}>
+          <Ionicons name="chatbubble-outline" size={13} color={Colors.textSecondary} />
+          <Text style={styles.redditCommentCount}>{thread.replyCount}</Text>
+        </View>
+      </View>
     </TouchableOpacity>
   )
 }
@@ -485,6 +749,30 @@ function ProductCard({
   )
 }
 
+function PacketCard({ packet, onPress }: { packet: Packet; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.packetCard} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.packetEmoji}>
+        <Text style={styles.packetEmojiText}>{packet.coverEmoji}</Text>
+      </View>
+      <View style={styles.packetInfo}>
+        <Text style={styles.packetTitle} numberOfLines={2}>{packet.title}</Text>
+        {packet.description ? (
+          <Text style={styles.packetDesc} numberOfLines={1}>{packet.description}</Text>
+        ) : null}
+        <View style={styles.packetMeta}>
+          <Text style={styles.packetAuthor}>{packet.authorName}</Text>
+          <Text style={styles.packetDot}>·</Text>
+          <Text style={styles.packetStat}>{packet.chapterCount} chapters</Text>
+          <Text style={styles.packetDot}>·</Text>
+          <Text style={styles.packetStat}>{packet.totalReads} reads</Text>
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+    </TouchableOpacity>
+  )
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   header: {
@@ -519,13 +807,13 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 9, fontWeight: '700', color: '#fff' },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
+    marginBottom: Spacing.sm,
     backgroundColor: Colors.card, borderRadius: Radius.full,
     paddingHorizontal: Spacing.md, paddingVertical: 10,
     ...Shadow.card,
   },
   searchInput: { flex: 1, fontSize: 14, color: Colors.text },
-  filterRow: { marginVertical: Spacing.xs, height: 48 },
+  filterRow: { marginBottom: Spacing.sm, marginHorizontal: -Spacing.lg },
   filterScroll: { paddingHorizontal: Spacing.lg, gap: 8, paddingVertical: 6, alignItems: 'center' },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -536,7 +824,9 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
   filterChipText: { fontSize: 13, fontWeight: '600', color: Colors.text },
   filterChipTextActive: { color: Colors.card },
+  flex1: { flex: 1 },
   scroll: { padding: Spacing.lg, paddingBottom: 40 },
+  capturesOuter: { padding: Spacing.lg, paddingBottom: 40 },
   sectionLabel: { ...Typography.sectionLabel, color: Colors.sectionLabel, marginBottom: Spacing.md },
   empty: { alignItems: 'center', paddingTop: 40, gap: Spacing.md, paddingHorizontal: Spacing.xl },
   emptyHero: { alignItems: 'center', gap: Spacing.sm },
@@ -561,7 +851,7 @@ const styles = StyleSheet.create({
   },
   cardFeatured: {
     borderWidth: 1.5, borderColor: Colors.primary + '40',
-    backgroundColor: Colors.primary + '08',
+    backgroundColor: Colors.card,
   },
   cardTop: { marginBottom: Spacing.xs },
   cardMeta: { gap: 4 },
@@ -594,36 +884,45 @@ const styles = StyleSheet.create({
   reactionEmoji: { fontSize: 13 },
   reactionCount: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
   reactionCountActive: { color: Colors.primary },
-  // Thread cards
-  threadCard: {
+  // Threads loading
+  threadsLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  threadsLoadingText: { fontSize: 14, color: Colors.textSecondary },
+
+  // Reddit-style thread cards
+  redditCard: {
     backgroundColor: Colors.card, borderRadius: Radius.lg,
-    padding: Spacing.lg, marginBottom: Spacing.md, ...Shadow.card,
+    padding: Spacing.md, marginBottom: 2, ...Shadow.card,
   },
-  threadCardResolved: { opacity: 0.7 },
-  threadCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.sm },
-  threadAnchor: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: Colors.primary + '12', borderRadius: Radius.full,
-    paddingHorizontal: 8, paddingVertical: 3, flex: 1,
+  redditMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  redditAvatar: {
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
   },
-  threadAnchorText: { ...Typography.caption, color: Colors.primary, fontWeight: '600', flex: 1 },
-  resolvedChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.success + '15', borderRadius: Radius.full,
-    paddingHorizontal: 7, paddingVertical: 3,
-  },
-  resolvedChipText: { fontSize: 10, fontWeight: '700', color: Colors.success },
-  threadTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, lineHeight: 22, marginBottom: Spacing.sm },
-  threadFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  threadMeta: { ...Typography.caption, color: Colors.textSecondary },
-  replyStat: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  replyCount: { ...Typography.caption, color: Colors.textSecondary },
-  threadTagRow: { flexDirection: 'row', gap: 6, marginTop: Spacing.sm },
-  threadTag: {
+  redditAvatarText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  redditAuthor: { fontSize: 12, fontWeight: '600', color: Colors.text },
+  redditDot: { fontSize: 12, color: Colors.textTertiary },
+  redditTime: { fontSize: 12, color: Colors.textSecondary },
+  resolvedPill: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  resolvedPillText: { fontSize: 11, fontWeight: '600', color: Colors.success },
+  redditTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, lineHeight: 21, marginBottom: 8 },
+  redditTagRow: { flexDirection: 'row', gap: 5, marginBottom: 10, flexWrap: 'wrap' },
+  redditTag: {
     paddingHorizontal: 8, paddingVertical: 3,
-    backgroundColor: Colors.accent + '12', borderRadius: Radius.full,
+    backgroundColor: Colors.accent + '15', borderRadius: Radius.full,
   },
-  threadTagText: { fontSize: 10, fontWeight: '600', color: Colors.accent },
+  redditTagText: { fontSize: 10, fontWeight: '600', color: Colors.accent },
+  redditFooter: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  redditVoteRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  redditVoteBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center',
+  },
+  redditVoteBtnUp: { backgroundColor: Colors.primary },
+  redditVoteBtnDown: { backgroundColor: Colors.error },
+  redditVoteCount: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, minWidth: 20, textAlign: 'center' },
+  redditVoteCountActive: { color: Colors.primary },
+  redditCommentRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  redditCommentCount: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
   // Product cards (Launches tab)
   launchHeader: { marginBottom: Spacing.lg },
   launchHeaderTitle: { fontSize: 17, fontWeight: '800', color: Colors.text },
@@ -674,4 +973,21 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.primary,
   },
   launchFooterBtnText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+  packetCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.card, borderRadius: Radius.xl,
+    padding: Spacing.md, marginBottom: Spacing.sm, ...Shadow.card,
+  },
+  packetEmoji: {
+    width: 52, height: 52, borderRadius: Radius.lg,
+    backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center',
+  },
+  packetEmojiText: { fontSize: 28 },
+  packetInfo: { flex: 1 },
+  packetTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 2 },
+  packetDesc: { ...Typography.caption, color: Colors.textSecondary, marginBottom: 4 },
+  packetMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  packetAuthor: { fontSize: 11, fontWeight: '600', color: Colors.primary },
+  packetDot: { fontSize: 11, color: Colors.textTertiary },
+  packetStat: { fontSize: 11, color: Colors.textSecondary },
 })

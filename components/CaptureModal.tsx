@@ -6,11 +6,13 @@ import {
 import { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
+import { useRouter } from 'expo-router'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../constants/theme'
-import { captureUrl, analyzeImage, detectPlatform } from '../lib/api'
+import { captureUrl, captureText, analyzeImage, detectPlatform } from '../lib/api'
+import { checkCaptureLimit, limitMessage } from '../lib/limits'
 import type { Capture } from './CaptureCard'
 
-type Mode = 'url' | 'screenshot' | 'camera'
+type Mode = 'url' | 'screenshot' | 'camera' | 'paste'
 
 type Props = {
   visible: boolean
@@ -19,12 +21,29 @@ type Props = {
 }
 
 export function CaptureModal({ visible, onClose, onCapture }: Props) {
+  const router = useRouter()
   const [mode, setMode] = useState<Mode>('url')
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [image, setImage] = useState<string | null>(null)
   const [imageBase64, setImageBase64] = useState<string | null>(null)
+  const [pasteText, setPasteText] = useState('')
+  const [pasteTitle, setPasteTitle] = useState('')
+
+  const guardLimit = async (): Promise<boolean> => {
+    const result = await checkCaptureLimit()
+    if (!result.blocked) return true
+    Alert.alert(
+      'Capture limit reached',
+      limitMessage(result),
+      [
+        { text: 'Upgrade', onPress: () => { onClose(); router.push('/paywall' as any) } },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    )
+    return false
+  }
 
   const platform = detectPlatform(url)
   const platformDetected = url.trim().length > 6 && platform !== 'Video'
@@ -35,6 +54,8 @@ export function CaptureModal({ visible, onClose, onCapture }: Props) {
     setError('')
     setImage(null)
     setImageBase64(null)
+    setPasteText('')
+    setPasteTitle('')
     setMode('url')
     setLoading(false)
   }
@@ -46,6 +67,7 @@ export function CaptureModal({ visible, onClose, onCapture }: Props) {
 
   const handleUrlCapture = async () => {
     if (!canCapture) return
+    if (!await guardLimit()) return
     Keyboard.dismiss()
     setLoading(true)
     setError('')
@@ -84,7 +106,7 @@ export function CaptureModal({ visible, onClose, onCapture }: Props) {
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Allow Grimoire to access your photos.')
+      Alert.alert('Permission needed', 'Allow Vibecoded to access your photos.')
       return
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -102,7 +124,7 @@ export function CaptureModal({ visible, onClose, onCapture }: Props) {
   const handleCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Allow Grimoire to use your camera.')
+      Alert.alert('Permission needed', 'Allow Vibecoded to use your camera.')
       return
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -116,11 +138,56 @@ export function CaptureModal({ visible, onClose, onCapture }: Props) {
     }
   }
 
+  const handlePasteCapture = async () => {
+    if (pasteText.trim().length < 50) {
+      setError('Paste at least a few sentences of content.')
+      return
+    }
+    if (!await guardLimit()) return
+    Keyboard.dismiss()
+    setLoading(true)
+    setError('')
+    try {
+      const result = await captureText({
+        text: pasteText.trim(),
+        title: pasteTitle.trim() || 'Pasted content',
+      })
+      const newCapture: Capture = {
+        id: Date.now().toString(),
+        title: result.title,
+        sourceUrl: '',
+        sourceType: 'video',
+        creator: result.creator || 'Creator',
+        platform: 'Paste',
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        stars: 0,
+        starred: false,
+        isPublic: false,
+        pushed: false,
+        pinned: false,
+        preview: result.preview || '',
+        concepts: result.concepts ?? [],
+        actions: result.actions ?? [],
+        quotes: result.quotes ?? [],
+        transcript: result.transcript ?? '',
+        category: result.category ?? '',
+      }
+      onCapture(newCapture)
+      reset()
+      onClose()
+    } catch (e: any) {
+      setError(e.message ?? 'Something went wrong. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleAnalyzeImage = async () => {
     if (!imageBase64) {
       setError('Image not ready. Try picking it again.')
       return
     }
+    if (!await guardLimit()) return
     setLoading(true)
     setError('')
     try {
@@ -166,20 +233,19 @@ export function CaptureModal({ visible, onClose, onCapture }: Props) {
           </View>
 
           <View style={styles.modeTabs}>
-            {(['url', 'screenshot', 'camera'] as Mode[]).map(m => (
+            {([
+              { id: 'url', icon: 'link-outline', label: 'URL' },
+              { id: 'screenshot', icon: 'image-outline', label: 'Photo' },
+              { id: 'camera', icon: 'camera-outline', label: 'Camera' },
+              { id: 'paste', icon: 'document-text-outline', label: 'Paste' },
+            ] as { id: Mode; icon: string; label: string }[]).map(m => (
               <TouchableOpacity
-                key={m}
-                style={[styles.modeTab, mode === m && styles.modeTabActive]}
-                onPress={() => { setMode(m); setImage(null); setError('') }}
+                key={m.id}
+                style={[styles.modeTab, mode === m.id && styles.modeTabActive]}
+                onPress={() => { setMode(m.id); setImage(null); setError('') }}
               >
-                <Ionicons
-                  name={m === 'url' ? 'link-outline' : m === 'screenshot' ? 'image-outline' : 'camera-outline'}
-                  size={15}
-                  color={mode === m ? Colors.card : Colors.textSecondary}
-                />
-                <Text style={[styles.modeText, mode === m && styles.modeTextActive]}>
-                  {m === 'url' ? 'URL' : m === 'screenshot' ? 'Screenshot' : 'Camera'}
-                </Text>
+                <Ionicons name={m.icon as any} size={14} color={mode === m.id ? Colors.card : Colors.textSecondary} />
+                <Text style={[styles.modeText, mode === m.id && styles.modeTextActive]}>{m.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -294,6 +360,59 @@ export function CaptureModal({ visible, onClose, onCapture }: Props) {
               )}
             </View>
           )}
+          {mode === 'paste' && (
+            <View style={styles.content}>
+              <View style={styles.pasteBadge}>
+                <Ionicons name="sparkles-outline" size={13} color={Colors.accent} />
+                <Text style={styles.pasteBadgeText}>For creators — paste a script, blog post, newsletter, or notes</Text>
+              </View>
+
+              <TextInput
+                style={styles.pasteTitleInput}
+                placeholder="Title (optional) — e.g. 'My launch strategy'"
+                placeholderTextColor={Colors.textSecondary}
+                value={pasteTitle}
+                onChangeText={setPasteTitle}
+                maxLength={80}
+              />
+
+              <TextInput
+                style={styles.pasteInput}
+                placeholder="Paste your content here — AI will extract the key insights and actions..."
+                placeholderTextColor={Colors.textSecondary}
+                value={pasteText}
+                onChangeText={v => { setPasteText(v); setError('') }}
+                multiline
+                textAlignVertical="top"
+              />
+
+              {error ? (
+                <View style={styles.errorRow}>
+                  <Ionicons name="alert-circle-outline" size={14} color={Colors.error} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={[styles.actionBtn, (pasteText.trim().length < 50 || loading) && styles.actionBtnDisabled]}
+                onPress={handlePasteCapture}
+                disabled={pasteText.trim().length < 50 || loading}
+              >
+                {loading ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator size="small" color={Colors.card} />
+                    <Text style={styles.actionBtnText}>Extracting insights...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.actionBtnText}>Extract with AI</Text>
+                )}
+              </TouchableOpacity>
+
+              <Text style={styles.hint}>
+                Works with Instagram captions, YouTube scripts, Facebook posts, newsletters, blog drafts
+              </Text>
+            </View>
+          )}
         </View>
         </KeyboardAvoidingView>
       </View>
@@ -380,4 +499,20 @@ const styles = StyleSheet.create({
   },
   secondaryBtn: { alignItems: 'center', paddingVertical: Spacing.sm },
   secondaryBtnText: { ...Typography.caption, color: Colors.textSecondary },
+  pasteBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.accent + '12', borderRadius: Radius.md,
+    padding: Spacing.sm, paddingHorizontal: Spacing.md,
+  },
+  pasteBadgeText: { ...Typography.caption, color: Colors.accent, flex: 1, fontWeight: '600', lineHeight: 17 },
+  pasteTitleInput: {
+    backgroundColor: Colors.background, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md, paddingVertical: 12,
+    fontSize: 14, color: Colors.text,
+  },
+  pasteInput: {
+    backgroundColor: Colors.background, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md, paddingVertical: 12,
+    fontSize: 14, color: Colors.text, minHeight: 140,
+  },
 })

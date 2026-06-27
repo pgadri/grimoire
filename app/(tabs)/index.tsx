@@ -11,91 +11,13 @@ import CaptureCard, { Capture } from '../../components/CaptureCard'
 import { CaptureModal } from '../../components/CaptureModal'
 import { AddToMapSheet } from '../../components/AddToMapSheet'
 import { useRouter, useFocusEffect } from 'expo-router'
-import { getProjectProfile, ProjectProfile } from '../../lib/project'
-import { matchRisks, readinessScore } from '../../lib/projectRisk'
 import { SEED_CAPTURES } from '../../lib/seeds'
 import { getUser } from '../../lib/auth'
+import { syncPublicCapture, unsyncPublicCapture } from '../../lib/community'
+import { checkCaptureLimit, limitMessage } from '../../lib/limits'
 
-const RESOLVED_KEY = 'grimoire:resolvedRisks'
 const CAPTURES_KEY = 'grimoire:captures'
 
-const MOCK_CAPTURES: Capture[] = [
-  {
-    id: '1',
-    title: 'How I got my first 1000 users without spending a dollar on ads',
-    sourceUrl: 'https://instagram.com/reel/abc',
-    sourceType: 'video',
-    creator: '@indiefounder',
-    platform: 'Instagram',
-    date: 'Jun 24',
-    stars: 142,
-    starred: false,
-    isPublic: true,
-    pushed: true,
-    pinned: true,
-    preview: '• Launch to your existing network first — DMs convert 10x better than posts\n• Your first 10 users should be people who already trust you\n• Don\'t announce, infiltrate',
-  },
-  {
-    id: '2',
-    title: 'Pricing strategy for your first app — why free is a trap',
-    sourceUrl: 'https://youtube.com/watch?v=xyz',
-    sourceType: 'video',
-    creator: '@buildwithme',
-    platform: 'YouTube',
-    date: 'Jun 24',
-    stars: 89,
-    starred: true,
-    isPublic: false,
-    pushed: true,
-    pinned: false,
-    preview: '• Start at $4.99 minimum — free signals no value\n• Annual plans convert 3x better than monthly\n• Raise price after first 100 users, not before',
-  },
-  {
-    id: '3',
-    title: 'Screenshot: App store optimization checklist',
-    sourceUrl: '',
-    sourceType: 'image',
-    creator: 'You',
-    platform: 'Screenshot',
-    date: 'Jun 22',
-    stars: 0,
-    starred: false,
-    isPublic: false,
-    pushed: false,
-    pinned: false,
-    preview: '• Use keywords in subtitle, not just title\n• First 3 screenshots must show core value\n• Localize at minimum for US + UK + AU',
-  },
-  {
-    id: '4',
-    title: 'How to set up Stripe in an Expo app in 30 minutes',
-    sourceUrl: 'https://youtube.com/watch?v=stripe',
-    sourceType: 'video',
-    creator: '@stripepro',
-    platform: 'YouTube',
-    date: 'Jun 18',
-    stars: 34,
-    starred: false,
-    isPublic: false,
-    pushed: true,
-    pinned: false,
-    preview: '• Use stripe-react-native, not Stripe.js\n• Test mode cards: 4242 4242 4242 4242\n• Always verify payments server-side',
-  },
-  {
-    id: '5',
-    title: 'The fastest way to build a landing page that converts',
-    sourceUrl: 'https://instagram.com/reel/lp',
-    sourceType: 'video',
-    creator: '@growthpro',
-    platform: 'Instagram',
-    date: 'May 30',
-    stars: 211,
-    starred: true,
-    isPublic: true,
-    pushed: true,
-    pinned: false,
-    preview: '• Lead with the outcome, not the feature\n• One CTA per page — remove everything else\n• Social proof above the fold, not at the bottom',
-  },
-]
 
 function getGroup(date: string): string {
   const today = new Date()
@@ -136,15 +58,15 @@ function groupCaptures(captures: Capture[]): { label: string; items: Capture[] }
   return result
 }
 
+type FeedTab = 'all' | 'following'
+
 export default function FeedScreen() {
-  const [captures, setCaptures] = useState(MOCK_CAPTURES)
+  const [captures, setCaptures] = useState<Capture[]>(SEED_CAPTURES)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState('')
+  const [feedTab, setFeedTab] = useState<FeedTab>('all')
   const router = useRouter()
   const [showCapture, setShowCapture] = useState(false)
-  const [profile, setProfile] = useState<ProjectProfile | null>(null)
-  const [openRisks, setOpenRisks] = useState(0)
-  const [score, setScore] = useState(100)
   const [addToMapCapture, setAddToMapCapture] = useState<Capture | null>(null)
   const [userName, setUserName] = useState('')
 
@@ -156,7 +78,6 @@ export default function FeedScreen() {
     let active = true
     const load = async () => {
       getUser().then(u => { if (active && u) setUserName(u.name.split(' ')[0]) })
-      // Load persisted captures
       try {
         const raw = await AsyncStorage.getItem(CAPTURES_KEY)
         if (raw) {
@@ -167,20 +88,7 @@ export default function FeedScreen() {
           if (active) setCaptures(SEED_CAPTURES)
         }
       } catch {}
-
-      const p = await getProjectProfile()
-      let resolved: string[] = []
-      try {
-        const raw = await AsyncStorage.getItem(RESOLVED_KEY)
-        resolved = raw ? JSON.parse(raw) : []
-      } catch {}
       if (!active) return
-      setProfile(p)
-      if (p) {
-        const risks = matchRisks(p, resolved)
-        setOpenRisks(risks.filter(r => !r.resolved).length)
-        setScore(readinessScore(p, resolved))
-      }
     }
     load()
     return () => { active = false }
@@ -204,8 +112,27 @@ export default function FeedScreen() {
 
   const handlePush = (id: string) => {
     setCaptures(prev => {
-      const next = prev.map(c => c.id === id ? { ...c, pushed: true } : c)
+      const capture = prev.find(c => c.id === id)
+      const becomingPublic = capture ? !capture.isPublic : false
+      const next = prev.map(c => c.id === id ? { ...c, pushed: becomingPublic, isPublic: becomingPublic } : c)
       persistCaptures(next)
+      if (capture) {
+        if (becomingPublic) {
+          syncPublicCapture({
+            clientId: id,
+            title: capture.title,
+            preview: capture.preview,
+            category: capture.category,
+            sourceType: capture.sourceType,
+            platform: capture.platform,
+            creator: capture.creator,
+            sourceUrl: capture.sourceUrl,
+            authorName: capture.creator,
+          })
+        } else {
+          unsyncPublicCapture(id)
+        }
+      }
       return next
     })
   }
@@ -213,7 +140,7 @@ export default function FeedScreen() {
   const handleShare = async (capture: Capture) => {
     await Share.share({
       title: capture.title,
-      message: `${capture.title}\n\n${capture.preview}\n\nShared from Grimoire`,
+      message: `${capture.title}\n\n${capture.preview}\n\nShared from Vibecoded`,
     })
   }
 
@@ -232,12 +159,8 @@ export default function FeedScreen() {
         onPress: () => setAddToMapCapture(capture),
       },
       {
-        text: capture.isPublic ? 'Make Private' : 'Make Public',
-        onPress: () => setCaptures(prev => {
-          const next = prev.map(c => c.id === capture.id ? { ...c, isPublic: !c.isPublic } : c)
-          persistCaptures(next)
-          return next
-        }),
+        text: capture.isPublic ? 'Make Private' : 'Publish to Community',
+        onPress: () => handlePush(capture.id),
       },
       {
         text: 'Delete',
@@ -252,7 +175,15 @@ export default function FeedScreen() {
     ])
   }
 
-  const handleNewCapture = (capture: Capture) => {
+  const handleNewCapture = async (capture: Capture) => {
+    const limitResult = await checkCaptureLimit()
+    if (limitResult.blocked) {
+      Alert.alert('Capture limit reached', limitMessage(limitResult), [
+        { text: 'Upgrade', onPress: () => router.push('/paywall' as any) },
+        { text: 'Cancel', style: 'cancel' },
+      ])
+      return
+    }
     setCaptures(prev => {
       const next = [capture, ...prev]
       persistCaptures(next)
@@ -273,7 +204,7 @@ export default function FeedScreen() {
         <View style={styles.headerLeft}>
           <Text style={styles.greeting}>{userName || 'Builder'} ✦</Text>
           <Text style={styles.headerSub}>
-            {profile ? `${profile.name}` : 'No project connected'}
+            Your captures
           </Text>
         </View>
         <View style={styles.headerRight}>
@@ -286,42 +217,20 @@ export default function FeedScreen() {
         </View>
       </View>
 
-      {/* Launch confidence card — always visible */}
-      {!profile ? (
-        <TouchableOpacity
-          style={styles.launchCard}
-          onPress={() => router.push('/onboarding')}
-          activeOpacity={0.9}
-        >
-          <View style={styles.launchCardLeft}>
-            <Text style={styles.launchCardLabel}>LAUNCH CONFIDENCE</Text>
-            <Text style={styles.launchCardTitle}>Connect your project</Text>
-            <Text style={styles.launchCardSub}>Get real-time launch risk analysis for your stack</Text>
-          </View>
-          <View style={styles.launchScoreCircle}>
-            <Text style={styles.launchScoreNum}>?</Text>
-          </View>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          style={[styles.launchCard, openRisks > 0 ? styles.launchCardRisk : styles.launchCardGood]}
-          onPress={() => router.push('/readiness')}
-          activeOpacity={0.9}
-        >
-          <View style={styles.launchCardLeft}>
-            <Text style={styles.launchCardLabel}>LAUNCH CONFIDENCE</Text>
-            <Text style={styles.launchCardTitle}>
-              {openRisks > 0 ? `${openRisks} risk${openRisks !== 1 ? 's' : ''} blocking launch` : 'Ready to ship'}
+      {/* Feed tabs */}
+      <View style={styles.feedTabs}>
+        {(['all', 'following'] as FeedTab[]).map(tab => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.feedTab, feedTab === tab && styles.feedTabActive]}
+            onPress={() => setFeedTab(tab)}
+          >
+            <Text style={[styles.feedTabText, feedTab === tab && styles.feedTabTextActive]}>
+              {tab === 'all' ? 'All' : 'Following'}
             </Text>
-            <Text style={styles.launchCardSub}>
-              {profile.name} · tap to see {openRisks > 0 ? 'fixes' : 'full report'}
-            </Text>
-          </View>
-          <View style={[styles.launchScoreCircle, { borderColor: score >= 80 ? Colors.success : score >= 50 ? Colors.gold : Colors.error }]}>
-            <Text style={[styles.launchScoreNum, { color: score >= 80 ? Colors.success : score >= 50 ? Colors.gold : Colors.error }]}>{score}</Text>
-          </View>
-        </TouchableOpacity>
-      )}
+          </TouchableOpacity>
+        ))}
+      </View>
 
       {/* Search */}
       <View style={styles.searchRow}>
@@ -350,7 +259,30 @@ export default function FeedScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
-        {search ? (
+        {feedTab === 'following' && !search ? (
+          <>
+            <View style={styles.followingHeader}>
+              <Text style={styles.sectionLabel}>✦ FROM VIBECODED</Text>
+              <Text style={styles.followingNote}>You follow @vibecoded by default</Text>
+            </View>
+            {SEED_CAPTURES.filter(c => c.isPublic).map(capture => (
+              <CaptureCard
+                key={capture.id}
+                capture={capture}
+                onStar={handleStar}
+                onPush={handlePush}
+                onShare={handleShare}
+                onLongPress={handleLongPress}
+              />
+            ))}
+            <TouchableOpacity
+              style={styles.emptyAction}
+              onPress={() => router.push('/(tabs)/discover' as any)}
+            >
+              <Text style={styles.emptyActionText}>Find more builders to follow →</Text>
+            </TouchableOpacity>
+          </>
+        ) : search ? (
           <>
             <Text style={styles.sectionLabel}>
               {filtered.length} RESULT{filtered.length !== 1 ? 'S' : ''}
@@ -399,12 +331,14 @@ export default function FeedScreen() {
           ))
         ) : (
           <View style={styles.empty}>
-            <Ionicons name="book-outline" size={48} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No captures yet</Text>
-            <Text style={styles.emptyBody}>Tap + to capture your first video or screenshot</Text>
+            <Text style={{ fontSize: 40, marginBottom: Spacing.sm }}>✦</Text>
+            <Text style={styles.emptyTitle}>Start your knowledge base</Text>
+            <Text style={styles.emptyBody}>
+              Paste a video URL, upload a screenshot, or describe a concept — Vibecoded extracts the insights and turns them into prompts you can feed straight into your AI coding tool.
+            </Text>
             <TouchableOpacity style={styles.emptyBtn} onPress={() => setShowCapture(true)}>
               <Ionicons name="add" size={16} color={Colors.card} />
-              <Text style={styles.emptyBtnText}>New Capture</Text>
+              <Text style={styles.emptyBtnText}>First capture</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -445,24 +379,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     ...Shadow.card,
   },
-  launchCard: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: Spacing.lg, marginTop: Spacing.sm, marginBottom: Spacing.xs,
-    backgroundColor: Colors.primary, borderRadius: Radius.xl,
-    padding: Spacing.lg, ...Shadow.card,
+  feedTabs: {
+    flexDirection: 'row', paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, gap: Spacing.sm,
   },
-  launchCardRisk: { backgroundColor: Colors.primary },
-  launchCardGood: { backgroundColor: '#1A4D2E' },
-  launchCardLeft: { flex: 1 },
-  launchCardLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.6)', letterSpacing: 1.2, marginBottom: 4 },
-  launchCardTitle: { fontSize: 17, fontWeight: '800', color: '#fff', marginBottom: 3 },
-  launchCardSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
-  launchScoreCircle: {
-    width: 56, height: 56, borderRadius: 28, borderWidth: 3, borderColor: '#fff',
-    alignItems: 'center', justifyContent: 'center', marginLeft: Spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+  feedTab: {
+    paddingHorizontal: Spacing.lg, paddingVertical: 8,
+    borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.border,
+    backgroundColor: Colors.card,
   },
-  launchScoreNum: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  feedTabActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  feedTabText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  feedTabTextActive: { color: '#fff' },
+
   searchRow: {
     flexDirection: 'row', paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm, gap: Spacing.sm, alignItems: 'center',
@@ -487,6 +415,14 @@ const styles = StyleSheet.create({
     ...Typography.cardBody, color: Colors.textSecondary,
     textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.xl,
   },
+  followingHeader: { marginBottom: Spacing.sm, gap: 3 },
+  followingNote: { fontSize: 11, color: Colors.textTertiary, fontWeight: '500' },
+  emptyAction: {
+    backgroundColor: Colors.primary, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.xl, paddingVertical: 11, marginTop: Spacing.lg,
+    alignSelf: 'center',
+  },
+  emptyActionText: { fontSize: 14, fontWeight: '700', color: '#fff' },
   emptyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.primary, borderRadius: Radius.full,

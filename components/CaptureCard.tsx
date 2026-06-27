@@ -101,12 +101,12 @@ export default function CaptureCard({ capture, onStar, onPush, onShare, onLongPr
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Ionicons
-            name={capture.pushed ? 'checkmark-circle' : 'cloud-upload-outline'}
+            name={capture.isPublic ? 'globe' : 'globe-outline'}
             size={16}
-            color={capture.pushed ? Colors.success : Colors.textSecondary}
+            color={capture.isPublic ? Colors.primary : Colors.textSecondary}
           />
-          <Text style={[styles.footerCount, capture.pushed && styles.pushedText]}>
-            {capture.pushed ? 'Saved' : 'Push'}
+          <Text style={[styles.footerCount, capture.isPublic && styles.publishedText]}>
+            {capture.isPublic ? 'Public' : 'Publish'}
           </Text>
         </TouchableOpacity>
 
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   },
   footerBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   footerCount: { ...Typography.caption, color: Colors.textSecondary },
-  pushedText: { color: Colors.success },
+  publishedText: { color: Colors.primary },
   categoryChip: {
     alignSelf: 'flex-start', borderRadius: Radius.full,
     paddingHorizontal: 8, paddingVertical: 3, marginBottom: Spacing.sm,

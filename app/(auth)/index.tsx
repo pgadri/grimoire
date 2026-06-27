@@ -1,27 +1,101 @@
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import * as WebBrowser from 'expo-web-browser'
+import * as AuthSession from 'expo-auth-session'
+import * as AppleAuthentication from 'expo-apple-authentication'
 import { Colors, Spacing, Radius, Shadow, Typography } from '../../constants/theme'
-import { signUp, signIn, requestPasswordReset } from '../../lib/auth'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { signUp, signIn, requestPasswordReset, signInWithGithub, signInWithApple } from '../../lib/auth'
+import { ONBOARDED_KEY } from '../onboarding'
+import { LEGAL_VERSION, LEGAL_ACCEPTED_KEY } from '../../lib/legal'
+
+WebBrowser.maybeCompleteAuthSession()
+
+const GITHUB_CLIENT_ID = 'Ov23liwQyE1SlatWoQf7'
 
 type Mode = 'signin' | 'signup'
 
 export default function AuthScreen() {
   const router = useRouter()
-  const [mode, setMode] = useState<Mode>('signin')
+  const [mode, setMode] = useState<Mode>('signup')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [oauthLoading, setOauthLoading] = useState<'github' | 'apple' | null>(null)
   const [error, setError] = useState('')
+  const [appleAvailable, setAppleAvailable] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: 'vibecoded' })
+
+  const [githubRequest, githubResponse, promptGithub] = AuthSession.useAuthRequest(
+    { clientId: GITHUB_CLIENT_ID, scopes: ['user:email'], redirectUri },
+    { authorizationEndpoint: 'https://github.com/login/oauth/authorize' },
+  )
+
+  useEffect(() => {
+    AppleAuthentication.isAvailableAsync().then(setAppleAvailable)
+  }, [])
+
+  useEffect(() => {
+    if (githubResponse?.type === 'success') {
+      const { code } = githubResponse.params
+      setOauthLoading('github')
+      setError('')
+      signInWithGithub(code, redirectUri)
+        .then(() => afterOAuth())
+        .catch(e => { setError(e?.message ?? 'GitHub sign-in failed'); setOauthLoading(null) })
+    } else if (githubResponse?.type === 'error') {
+      setError('GitHub sign-in was cancelled or failed.')
+    }
+  }, [githubResponse])
+
+  const afterOAuth = async () => {
+    setOauthLoading(null)
+    await AsyncStorage.setItem(LEGAL_ACCEPTED_KEY, String(LEGAL_VERSION))
+    const onboarded = await AsyncStorage.getItem(ONBOARDED_KEY)
+    router.replace(onboarded ? '/(tabs)' : '/onboarding')
+  }
+
+  const handleApple = async () => {
+    setError('')
+    setOauthLoading('apple')
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      })
+      const fullName = [credential.fullName?.givenName, credential.fullName?.familyName]
+        .filter(Boolean).join(' ') || null
+      await signInWithApple({
+        identityToken: credential.identityToken!,
+        appleUserId: credential.user,
+        name: fullName,
+        email: credential.email,
+      })
+      await afterOAuth()
+    } catch (e: any) {
+      if (e?.code !== 'ERR_REQUEST_CANCELED') {
+        setError(e?.message ?? 'Apple sign-in failed')
+      }
+      setOauthLoading(null)
+    }
+  }
 
   const canSubmit = mode === 'signup'
-    ? name.trim().length > 0 && email.includes('@') && password.length >= 8 && password === confirmPassword
+    ? name.trim().length > 0 && email.includes('@') && password.length >= 8 && password === confirmPassword && termsAccepted
     : email.includes('@') && password.length >= 1
 
   const handleSubmit = async () => {
@@ -33,13 +107,15 @@ export default function AuthScreen() {
       if (mode === 'signup') {
         if (password !== confirmPassword) { setError("Passwords don't match"); return }
         await signUp({ name: name.trim(), email: cleanEmail, password })
+        await AsyncStorage.setItem(LEGAL_ACCEPTED_KEY, String(LEGAL_VERSION))
         router.replace({ pathname: '/(auth)/verify', params: { email: cleanEmail, flow: 'verify' } } as any)
       } else {
         const result = await signIn({ email: cleanEmail, password })
         if ('unverified' in result) {
           router.replace({ pathname: '/(auth)/verify', params: { email: cleanEmail, flow: 'verify' } } as any)
         } else {
-          router.replace('/(tabs)')
+          const onboarded = await AsyncStorage.getItem(ONBOARDED_KEY)
+          router.replace(onboarded ? '/(tabs)' : '/onboarding')
         }
       }
     } catch (e: any) {
@@ -133,34 +209,72 @@ export default function AuthScreen() {
 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>PASSWORD {mode === 'signup' && <Text style={styles.hint}>(min 8 characters)</Text>}</Text>
-              <TextInput
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                placeholder={mode === 'signup' ? 'Create a password' : 'Your password'}
-                placeholderTextColor={Colors.textTertiary}
-                secureTextEntry
-                returnKeyType={mode === 'signup' ? 'next' : 'done'}
-                onSubmitEditing={mode === 'signin' ? handleSubmit : undefined}
-              />
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.inputFlex}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={mode === 'signup' ? 'Create a password' : 'Your password'}
+                  placeholderTextColor={Colors.textTertiary}
+                  secureTextEntry={!showPassword}
+                  returnKeyType={mode === 'signup' ? 'next' : 'done'}
+                  onSubmitEditing={mode === 'signin' ? handleSubmit : undefined}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.eyeBtn}>
+                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {mode === 'signup' && (
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>CONFIRM PASSWORD</Text>
-                <TextInput
-                  style={[styles.input, confirmPassword.length > 0 && password !== confirmPassword && styles.inputError]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Repeat password"
-                  placeholderTextColor={Colors.textTertiary}
-                  secureTextEntry
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
+                <View style={[styles.inputRow, confirmPassword.length > 0 && password !== confirmPassword && styles.inputError]}>
+                  <TextInput
+                    style={styles.inputFlex}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    placeholder="Repeat password"
+                    placeholderTextColor={Colors.textTertiary}
+                    secureTextEntry={!showConfirm}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSubmit}
+                  />
+                  <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={styles.eyeBtn}>
+                    <Ionicons name={showConfirm ? 'eye-off-outline' : 'eye-outline'} size={20} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
+
+          {mode === 'signup' && (
+            <TouchableOpacity
+              style={styles.termsRow}
+              onPress={() => setTermsAccepted(v => !v)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                {termsAccepted && <Ionicons name="checkmark" size={13} color="#fff" />}
+              </View>
+              <Text style={styles.termsText}>
+                I agree to the{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => router.push({ pathname: '/legal', params: { doc: 'terms' } } as any)}
+                >
+                  Terms of Service
+                </Text>
+                {' '}and{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } } as any)}
+                >
+                  Privacy Policy
+                </Text>
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {error ? (
             <View style={styles.errorBanner}>
@@ -203,10 +317,37 @@ export default function AuthScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.githubBtn} disabled>
-            <Text style={styles.githubBtnText}>Continue with GitHub</Text>
-            <View style={styles.soonBadge}><Text style={styles.soonText}>SOON</Text></View>
+          <TouchableOpacity
+            style={styles.oauthBtn}
+            onPress={() => promptGithub()}
+            disabled={!githubRequest || !!oauthLoading}
+            activeOpacity={0.85}
+          >
+            {oauthLoading === 'github'
+              ? <ActivityIndicator color={Colors.text} />
+              : <>
+                  <Ionicons name="logo-github" size={20} color={Colors.text} />
+                  <Text style={styles.oauthBtnText}>Continue with GitHub</Text>
+                </>
+            }
           </TouchableOpacity>
+
+          {appleAvailable && (
+            <TouchableOpacity
+              style={[styles.oauthBtn, styles.appleBtn]}
+              onPress={handleApple}
+              disabled={!!oauthLoading}
+              activeOpacity={0.85}
+            >
+              {oauthLoading === 'apple'
+                ? <ActivityIndicator color="#fff" />
+                : <>
+                    <Ionicons name="logo-apple" size={20} color="#fff" />
+                    <Text style={[styles.oauthBtnText, styles.appleBtnText]}>Continue with Apple</Text>
+                  </>
+              }
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -235,6 +376,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: 14,
     fontSize: 16, color: Colors.text, ...Shadow.card,
   },
+  inputRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.card, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md, ...Shadow.card,
+  },
+  inputFlex: { flex: 1, fontSize: 16, color: Colors.text, paddingVertical: 14 },
+  eyeBtn: { padding: 4 },
   inputError: { borderWidth: 1.5, borderColor: Colors.error },
   errorBanner: {
     backgroundColor: Colors.error + '15', borderRadius: Radius.md,
@@ -256,15 +404,26 @@ const styles = StyleSheet.create({
   divider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.lg },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
   dividerText: { fontSize: 11, fontWeight: '600', color: Colors.textTertiary, letterSpacing: 1 },
-  githubBtn: {
+  oauthBtn: {
     backgroundColor: Colors.card, borderRadius: Radius.full,
     paddingVertical: 15, alignItems: 'center', borderWidth: 1.5, borderColor: Colors.border,
-    flexDirection: 'row', justifyContent: 'center', gap: 8, opacity: 0.5,
+    flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: Spacing.sm,
+    ...Shadow.card,
   },
-  githubBtnText: { fontSize: 15, fontWeight: '600', color: Colors.text },
-  soonBadge: {
-    backgroundColor: Colors.accent + '20', borderRadius: Radius.full,
-    paddingHorizontal: 7, paddingVertical: 2,
+  oauthBtnText: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  appleBtn: { backgroundColor: '#000', borderColor: '#000' },
+  appleBtnText: { color: '#fff' },
+  termsRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    marginBottom: Spacing.md,
   },
-  soonText: { fontSize: 9, fontWeight: '700', color: Colors.accent, letterSpacing: 0.8 },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 5,
+    borderWidth: 2, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 1, flexShrink: 0,
+  },
+  checkboxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  termsText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
+  termsLink: { color: Colors.primary, fontWeight: '600' },
 })

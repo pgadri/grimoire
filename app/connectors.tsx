@@ -86,7 +86,7 @@ export default function ConnectorsScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <Text style={styles.sub}>Connect AI models and services to power your Grimoire</Text>
+      <Text style={styles.sub}>Connect AI models and services to power your Vibecoded</Text>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {categories.map(cat => {

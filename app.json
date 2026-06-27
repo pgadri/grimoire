@@ -1,8 +1,14 @@
 {
   "expo": {
-    "name": "Grimoire",
+    "name": "Vibecoded",
     "slug": "grimoire",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/YOUR_EAS_PROJECT_ID"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -11,7 +17,7 @@
       "backgroundColor": "#EDE9E3"
     },
     "userInterfaceStyle": "light",
-    "scheme": "grimoire",
+    "scheme": "vibecoded",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.pgadri.grimoire",
@@ -19,7 +25,9 @@
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
           }
         ],
         "NSPrivacyCollectedDataTypes": [],
@@ -49,10 +57,17 @@
           "icon": "./assets/icon.png",
           "color": "#2A1B5E"
         }
-      ]
+      ],
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
     }
   }
 }

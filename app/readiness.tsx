@@ -1,5 +1,5 @@
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -83,6 +83,11 @@ export default function ReadinessScreen() {
     setTimeout(() => setCopiedId(c => (c === risk.id ? null : c)), 2000)
   }
 
+  const openInClaude = async (risk: MatchedRisk) => {
+    await Clipboard.setStringAsync(risk.aiPrompt)
+    Linking.openURL('https://claude.ai/new')
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -97,9 +102,9 @@ export default function ReadinessScreen() {
         <NavBar onBack={() => router.back()} title="Launch Readiness" />
         <View style={styles.center}>
           <Ionicons name="shield-outline" size={48} color={Colors.textTertiary} />
-          <Text style={styles.emptyTitle}>Tell Grimoire about your project</Text>
+          <Text style={styles.emptyTitle}>Tell Vibecoded about your project</Text>
           <Text style={styles.emptyBody}>
-            Grimoire needs to know what you're building to warn you about what's coming.
+            Vibecoded needs to know what you're building to warn you about what's coming.
           </Text>
           <TouchableOpacity style={styles.emptyCta} onPress={() => router.push('/onboarding')}>
             <Text style={styles.emptyCtaText}>Set up my project</Text>
@@ -184,12 +189,13 @@ export default function ReadinessScreen() {
               onToggleExpand={() => setExpanded(e => (e === risk.id ? null : risk.id))}
               onResolve={() => toggleResolved(risk.id)}
               onCopy={() => copyPrompt(risk)}
+              onOpenClaude={() => openInClaude(risk)}
             />
           ))
         )}
 
         <Text style={styles.footnote}>
-          Grimoire surfaces risks based on what you told it you're building. This is guidance from
+          Vibecoded surfaces risks based on what you told it you're building. This is guidance from
           verified creators, not a guarantee — always review changes before you ship.
         </Text>
       </ScrollView>
@@ -232,7 +238,7 @@ function NavBar({ onBack, title, onEdit, onShare }: { onBack: () => void; title:
 }
 
 function RiskCard({
-  risk, expanded, copied, onToggleExpand, onResolve, onCopy,
+  risk, expanded, copied, onToggleExpand, onResolve, onCopy, onOpenClaude,
 }: {
   risk: MatchedRisk
   expanded: boolean
@@ -240,6 +246,7 @@ function RiskCard({
   onToggleExpand: () => void
   onResolve: () => void
   onCopy: () => void
+  onOpenClaude: () => void
 }) {
   const color = SEVERITY_COLOR[risk.severity]
   return (
@@ -279,16 +286,21 @@ function RiskCard({
           <View style={styles.promptBox}>
             <Text style={styles.promptText}>{risk.aiPrompt}</Text>
           </View>
-          <TouchableOpacity style={styles.copyBtn} onPress={onCopy} activeOpacity={0.85}>
-            <Ionicons
-              name={copied ? 'checkmark' : 'copy-outline'}
-              size={15}
-              color={copied ? Colors.success : Colors.card}
-            />
-            <Text style={[styles.copyBtnText, copied && { color: Colors.success }]}>
-              {copied ? 'Copied!' : 'Copy AI prompt'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.fixActions}>
+            <TouchableOpacity style={styles.copyBtn} onPress={onCopy} activeOpacity={0.85}>
+              <Ionicons
+                name={copied ? 'checkmark' : 'copy-outline'}
+                size={15}
+                color={copied ? Colors.success : Colors.card}
+              />
+              <Text style={[styles.copyBtnText, copied && { color: Colors.success }]}>
+                {copied ? 'Copied!' : 'Copy prompt'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.claudeBtn} onPress={onOpenClaude} activeOpacity={0.85}>
+              <Text style={styles.claudeBtnText}>✦ Open Claude</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.riskFooter}>
             <Text style={styles.sourceText}>{risk.source}</Text>
@@ -377,11 +389,17 @@ const styles = StyleSheet.create({
   promptLabel: { ...Typography.sectionLabel, color: Colors.sectionLabel, fontSize: 10, marginTop: 4 },
   promptBox: { backgroundColor: Colors.background, borderRadius: Radius.sm, padding: Spacing.md },
   promptText: { fontSize: 13, color: Colors.text, lineHeight: 19, fontFamily: 'Courier' },
+  fixActions: { flexDirection: 'row', gap: Spacing.sm },
   copyBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: Colors.primary, borderRadius: Radius.full, paddingVertical: 11,
   },
-  copyBtnText: { ...Typography.button, color: Colors.card, fontSize: 14 },
+  copyBtnText: { ...Typography.button, color: Colors.card, fontSize: 13 },
+  claudeBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: Colors.primary, borderRadius: Radius.full, paddingVertical: 11,
+  },
+  claudeBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
   riskFooter: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginTop: 4, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border,

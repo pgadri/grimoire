@@ -4,89 +4,122 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Colors, Spacing, Radius, Typography } from '../constants/theme'
 
-const PRIVACY_POLICY = `Last updated: June 25, 2026
+const PRIVACY_POLICY = `Last updated: June 26, 2026
 
-Grimoire ("we", "us", or "our") is operated as an independent app. This policy explains what data we collect and how we use it.
+Vibecoded ("we", "us", or "our") is operated by an independent developer. This policy explains what data we collect, how we use it, and your rights.
 
 WHAT WE COLLECT
 
-• Content you capture: When you submit a video URL, we send it to our server to download audio and transcribe it. The URL, transcript, and AI-generated summary are stored on your device in local storage. If you push to GitHub, the note is stored in your GitHub repository.
+• Account data: Your name, email address, and username (@handle) are stored on our servers hosted on Railway (railway.app) and Neon Postgres. This is required to provide your account.
 
-• Screenshots and photos: Images you submit for analysis are sent to our server for AI processing. They are not stored on our servers after processing.
+• Captures: Notes, links, screenshots, and AI-generated summaries you create are stored locally on your device. You may optionally push them to your GitHub repository.
 
-• Device identity: We store a locally-generated user profile (name, handle, bio) on your device only. We do not create server-side accounts.
+• Images: Photos you submit for analysis are sent to our server for processing and are not retained after the response is returned.
 
-• Usage: We do not collect analytics, crash reports, or behavioral data in this version of the app.
+• Analytics (optional): We use PostHog (posthog.com) for anonymous product analytics — events like screen views and feature usage. No personally identifiable content is included. You can opt out by emailing us.
+
+• Crash & error monitoring: We use Sentry (sentry.io) to capture app errors. Error reports may include device type, OS version, and app state but not your account content.
 
 HOW WE USE YOUR DATA
 
-• Video URLs are sent to our server solely to download and transcribe the audio.
-• Transcripts and summaries are processed by Groq (groq.com) for AI analysis.
-• No data is sold to third parties.
-• No data is used for advertising.
+• To provide, maintain, and improve the Vibecoded service
+• To send transactional emails (OTP codes, account notices) via Resend (resend.com)
+• To enable community features (feed, threads, creator profiles)
+• We do not sell your personal data to third parties
+• We do not use your data for advertising
 
 THIRD-PARTY SERVICES
 
-• Groq (groq.com): Processes audio transcription and text generation. See groq.com/privacy.
-• GitHub (github.com): Used optionally to store your captured notes. See github.com/privacy.
-• Railway (railway.app): Hosts our backend server. See railway.app/legal/privacy.
+• Railway / Neon: Backend hosting and database. See railway.app/legal/privacy and neon.tech/privacy.
+• Resend: Transactional email. See resend.com/privacy.
+• PostHog: Anonymous product analytics. See posthog.com/privacy.
+• Sentry: Error monitoring. See sentry.io/privacy.
+• Groq: AI transcription and text generation. See groq.com/privacy.
+• RevenueCat: In-app subscription management. See revenuecat.com/privacy.
+• GitHub: Used optionally to store captures. See github.com/privacy.
 
 DATA RETENTION
 
-All capture data is stored on your device via AsyncStorage. Uninstalling the app removes all local data. Notes pushed to GitHub remain in your repository until you delete them.
+Account data is retained as long as your account exists. You may delete your account at any time from Profile → Delete Account. Deletion anonymises your account data immediately. Captures stored on your device are removed when you uninstall the app. Notes pushed to GitHub remain in your repository until you delete them.
 
 YOUR RIGHTS
 
-You can delete any capture from within the app at any time. To delete all data, uninstall the app.
+• Access: You may request a copy of your data by emailing hello@vibecoded.tech.
+• Deletion: Delete your account from Profile → Delete Account. All PII is removed immediately.
+• Correction: Update your profile from Profile → Edit Profile.
+• Opt-out: Email us to opt out of anonymous analytics.
+
+CHILDREN
+
+Vibecoded is not directed at children under 13 (or 16 in the EU). We do not knowingly collect data from minors.
 
 CONTACT
 
-Questions? Email hello@grimoire.app`
+Questions or requests? Email hello@vibecoded.tech`
 
-const TERMS_OF_SERVICE = `Last updated: June 25, 2026
+const TERMS_OF_SERVICE = `Last updated: June 26, 2026
 
-By using Grimoire, you agree to these terms.
+By creating an account or using Vibecoded, you agree to these Terms of Service.
 
-1. ACCEPTABLE USE
+1. WHAT VIBECODED IS
 
-Grimoire is a personal knowledge capture tool for vibe coders and app builders. You may use it to capture, organize, and reference publicly available content for personal learning and development purposes.
+Vibecoded is a launch-confidence platform for vibe coders and indie builders. It helps you track captures, manage your GitHub repo health, build in public, and prepare for product launches.
 
-You may not use Grimoire to:
-• Capture or store content that infringes copyright
-• Circumvent platform restrictions (e.g., capturing private/login-gated content)
-• Reverse engineer or abuse the service
+2. ACCEPTABLE USE
 
-2. CONTENT YOU CAPTURE
+You agree not to:
+• Post illegal, abusive, or harassing content
+• Impersonate other people or organisations
+• Attempt to reverse-engineer or abuse the service
+• Use automated bots to create accounts or scrape content
+• Submit content that infringes third-party intellectual property
 
-You are responsible for ensuring you have the right to capture and store content. We do not review content you capture. Captures stored on your device are yours.
+3. ACCOUNT
 
-Notes pushed to GitHub are stored in your GitHub account under GitHub's terms of service.
+You are responsible for all activity under your account. Keep your password secure. You must be at least 13 years old (16 in the EU) to create an account.
 
-3. SERVICE AVAILABILITY
+4. CONTENT YOU CREATE
 
-Grimoire is provided "as is." We do not guarantee uninterrupted availability of the transcription or AI features, which depend on third-party services (Groq, Railway).
+You retain ownership of captures, threads, and other content you create. By posting publicly, you grant Vibecoded a non-exclusive, royalty-free licence to display that content within the app. You can delete your content at any time.
 
-4. INTELLECTUAL PROPERTY
+5. SUBSCRIPTIONS AND BILLING
 
-The Grimoire app, its design, and original content are owned by Grimoire. Content you capture belongs to its original creators.
+Paid plans (Solopreneur, Team) are billed through Apple's App Store via RevenueCat. Charges appear on your Apple ID receipt. To cancel, go to Settings → Apple ID → Subscriptions on your iPhone and cancel Vibecoded. No refunds are issued for partial billing periods except where required by law.
 
-5. LIMITATION OF LIABILITY
+6. SERVICE AVAILABILITY
 
-To the maximum extent permitted by law, Grimoire is not liable for any indirect, incidental, or consequential damages arising from your use of the app.
+Vibecoded is provided "as is." We aim for high availability but do not guarantee uninterrupted service. Features that depend on third-party APIs (AI, GitHub, PostHog) may be unavailable when those services are down.
 
-6. CHANGES
+7. INTELLECTUAL PROPERTY
 
-We may update these terms. Continued use of the app after changes constitutes acceptance.
+The Vibecoded app, branding, and original content are owned by Vibecoded. Content you capture from external sources belongs to its original creators.
 
-7. CONTACT
+8. TERMINATION
 
-Questions? Email hello@grimoire.app`
+We may suspend or terminate accounts that violate these terms. You may delete your account at any time from Profile → Delete Account.
+
+9. LIMITATION OF LIABILITY
+
+To the maximum extent permitted by applicable law, Vibecoded is not liable for indirect, incidental, or consequential damages arising from your use of the app.
+
+10. CHANGES
+
+We may update these terms. When we do, we'll prompt you to review and re-accept them before you can continue using the app.
+
+11. GOVERNING LAW
+
+These terms are governed by the laws of the state of New York, USA, without regard to conflict of law principles.
+
+12. CONTACT
+
+Questions? Email hello@vibecoded.tech`
 
 export default function LegalScreen() {
-  const { type } = useLocalSearchParams<{ type: 'privacy' | 'terms' }>()
+  const params = useLocalSearchParams<{ type?: 'privacy' | 'terms'; doc?: 'privacy' | 'terms' }>()
   const router = useRouter()
+  const { type, doc } = params
 
-  const isPrivacy = type === 'privacy'
+  const isPrivacy = (type ?? doc) === 'privacy'
   const title = isPrivacy ? 'Privacy Policy' : 'Terms of Service'
   const content = isPrivacy ? PRIVACY_POLICY : TERMS_OF_SERVICE
 

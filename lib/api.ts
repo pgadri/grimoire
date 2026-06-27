@@ -50,6 +50,19 @@ export async function pushMapToGithub(map: MapPushData): Promise<{ url: string }
   return res.json()
 }
 
+export async function captureText(data: { text: string; title?: string; sourceUrl?: string; platform?: string }): Promise<{ title: string; note_url: string; preview: string; bullets: string[]; concepts: string[]; actions: string[]; quotes: string[]; transcript: string; category: string; creator: string }> {
+  const res = await fetch(`${API_BASE}/capture/paste`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: data.text, title: data.title ?? 'Pasted content', source_url: data.sourceUrl, platform: data.platform }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any).detail ?? `Server error ${res.status}`)
+  }
+  return res.json()
+}
+
 export async function analyzeImage(base64: string): Promise<{ title: string; preview: string; bullets: string[] }> {
   const res = await fetch(`${API_BASE}/analyze-image`, {
     method: 'POST',

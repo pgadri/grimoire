@@ -14,6 +14,12 @@ import {
   type Product, type ProductReview, type ReviewType,
 } from '../../lib/community'
 import { awardPoints } from '../../lib/reputation'
+import {
+  TESTING_TIERS, getCampaignForLaunch, createTestCampaign,
+  STATUS_LABEL, STATUS_COLOR,
+  type TestCampaign, type TestingTier,
+} from '../../lib/testing'
+import { getUser } from '../../lib/auth'
 
 const USER_KEY = 'grimoire:user'
 
@@ -34,6 +40,8 @@ export default function LaunchDetail() {
   const [body, setBody] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState<'about' | 'reviews'>('about')
+  const [campaign, setCampaign] = useState<TestCampaign | null | undefined>(undefined)
+  const [requestingTier, setRequestingTier] = useState<TestingTier | null>(null)
 
   useFocusEffect(useCallback(() => {
     getProducts().then(all => {
@@ -41,6 +49,7 @@ export default function LaunchDetail() {
       if (found) setProduct(found)
     })
     getProductReviews(id).then(setReviews)
+    getCampaignForLaunch(id).then(setCampaign)
   }, [id]))
 
   const handleUpvote = async () => {
@@ -71,6 +80,37 @@ export default function LaunchDetail() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleStartCampaign = async (tier: TestingTier) => {
+    if (!product) return
+    const tierInfo = TESTING_TIERS.find(t => t.id === tier)!
+    const user = await getUser()
+    const email = user?.email ?? ''
+    Alert.alert(
+      `Start ${tierInfo.name} campaign?`,
+      `${tierInfo.testers} real testers · $${tierInfo.price} · ${tierInfo.turnaround}\n\nWe'll contact you at ${email || 'your email'} to confirm before charging anything.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Request — $${tierInfo.price}`,
+          onPress: async () => {
+            setRequestingTier(tier)
+            try {
+              const c = await createTestCampaign({
+                launchId: product.id,
+                appName: product.name,
+                tier,
+                contactEmail: email,
+              })
+              setCampaign(c)
+            } finally {
+              setRequestingTier(null)
+            }
+          },
+        },
+      ]
+    )
   }
 
   if (!product) return null
@@ -182,6 +222,50 @@ export default function LaunchDetail() {
                 </View>
               )}
               <Text style={styles.launchDate}>Launched {formatRelTime(product.createdAt)}</Text>
+
+              {/* Testing campaign card */}
+              <View style={styles.testingCard}>
+                <View style={styles.testingHeader}>
+                  <Ionicons name="phone-portrait-outline" size={16} color={Colors.gold} />
+                  <Text style={styles.testingTitle}>Boost with real testers</Text>
+                  {campaign && (
+                    <View style={[styles.campaignStatusPill, { backgroundColor: STATUS_COLOR[campaign.status] + '20' }]}>
+                      <Text style={[styles.campaignStatusText, { color: STATUS_COLOR[campaign.status] }]}>
+                        {STATUS_LABEL[campaign.status]}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {campaign ? (
+                  <View style={styles.campaignActive}>
+                    <Text style={styles.campaignActiveText}>
+                      {TESTING_TIERS.find(t => t.id === campaign.tier)!.emoji} {TESTING_TIERS.find(t => t.id === campaign.tier)!.name} campaign · {TESTING_TIERS.find(t => t.id === campaign.tier)!.testers} testers
+                    </Text>
+                    <Text style={styles.campaignActiveSub}>We'll reach out to {campaign.contactEmail} to confirm details.</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.testingDesc}>Get real users on real devices. Bug reports, UX feedback, and verified reviews — posted right here.</Text>
+                    <View style={styles.tierRow}>
+                      {TESTING_TIERS.map(tier => (
+                        <TouchableOpacity
+                          key={tier.id}
+                          style={styles.tierBtn}
+                          onPress={() => handleStartCampaign(tier.id)}
+                          disabled={requestingTier !== null}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.tierBtnEmoji}>{tier.emoji}</Text>
+                          <Text style={styles.tierBtnName}>{tier.name}</Text>
+                          <Text style={styles.tierBtnTesters}>{tier.testers} testers</Text>
+                          <Text style={styles.tierBtnPrice}>${tier.price}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+              </View>
             </View>
           )}
 
@@ -356,6 +440,28 @@ const styles = StyleSheet.create({
   tag: { backgroundColor: Colors.accent + '15', borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 4 },
   tagText: { fontSize: 11, fontWeight: '600', color: Colors.accent },
   launchDate: { ...Typography.caption, color: Colors.textTertiary },
+  testingCard: {
+    backgroundColor: Colors.card, borderRadius: Radius.lg, padding: Spacing.md,
+    gap: Spacing.sm, ...Shadow.card,
+  },
+  testingHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  testingTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
+  testingDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
+  campaignStatusPill: { borderRadius: Radius.full, paddingHorizontal: 9, paddingVertical: 3 },
+  campaignStatusText: { fontSize: 10, fontWeight: '700' },
+  campaignActive: { gap: 4 },
+  campaignActiveText: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  campaignActiveSub: { fontSize: 12, color: Colors.textSecondary },
+  tierRow: { flexDirection: 'row', gap: Spacing.sm },
+  tierBtn: {
+    flex: 1, backgroundColor: Colors.background, borderRadius: Radius.md,
+    borderWidth: 1.5, borderColor: Colors.border, padding: Spacing.sm,
+    alignItems: 'center', gap: 2,
+  },
+  tierBtnEmoji: { fontSize: 16 },
+  tierBtnName: { fontSize: 12, fontWeight: '700', color: Colors.text },
+  tierBtnTesters: { fontSize: 10, color: Colors.textSecondary },
+  tierBtnPrice: { fontSize: 13, fontWeight: '800', color: Colors.primary, marginTop: 2 },
   reviewsSection: { gap: Spacing.md, marginBottom: Spacing.xl },
   emptyReviews: { alignItems: 'center', paddingVertical: Spacing.xl },
   emptyTitle: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
