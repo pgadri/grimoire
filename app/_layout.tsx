@@ -75,25 +75,33 @@ export default function RootLayout() {
     })
   }, [])
 
-  // Step 2: navigate only after Stack is rendered AND boot data is ready
+  // Step 2: navigate only after Stack is rendered AND boot data is ready.
+  // Re-reads legalAccepted fresh from storage each time so accepting terms
+  // in terms-gate.tsx is reflected immediately without stale boot data.
   useEffect(() => {
     if (boot === null) return
+    let cancelled = false
 
-    const { user, onboarded, legalAccepted } = boot
-    const needsTerms = user && Number(legalAccepted ?? 0) < LEGAL_VERSION
-    const seg = segments[0] as string | undefined
+    AsyncStorage.getItem(LEGAL_ACCEPTED_KEY).then(legalAccepted => {
+      if (cancelled) return
+      const { user, onboarded } = boot
+      const needsTerms = user && Number(legalAccepted ?? 0) < LEGAL_VERSION
+      const seg = segments[0] as string | undefined
 
-    try {
-      if (!user) {
-        if (seg !== '(auth)') router.replace('/(auth)')
-      } else if (needsTerms && seg !== 'terms-gate') {
-        router.replace('/terms-gate')
-      } else if (!onboarded) {
-        if (seg !== 'onboarding') router.replace('/onboarding')
-      } else {
-        if (seg !== '(tabs)' && seg !== 'welcome') router.replace('/(tabs)')
-      }
-    } catch {}
+      try {
+        if (!user) {
+          if (seg !== '(auth)') router.replace('/(auth)')
+        } else if (needsTerms && seg !== 'terms-gate') {
+          router.replace('/terms-gate')
+        } else if (!onboarded) {
+          if (seg !== 'onboarding') router.replace('/onboarding')
+        } else {
+          if (seg !== '(tabs)' && seg !== 'welcome') router.replace('/(tabs)')
+        }
+      } catch {}
+    }).catch(() => {})
+
+    return () => { cancelled = true }
   }, [boot, segments])
 
   return (
