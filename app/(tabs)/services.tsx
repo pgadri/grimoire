@@ -320,6 +320,32 @@ export default function ServicesScreen() {
             <Ionicons name="arrow-forward" size={18} color={Colors.primary} />
           </TouchableOpacity>
         </View>
+
+        {/* ─── Coming Soon ────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>COMING SOON</Text>
+
+          {[
+            { icon: 'map-outline',      color: '#7C6AF7', title: 'Learning Maps',        desc: 'Organize captures into shareable learning paths for your stack.' },
+            { icon: 'cube-outline',     color: '#10B981', title: 'Knowledge Packets',     desc: 'Bundle your best captures and sell them to other vibe coders.' },
+            { icon: 'storefront-outline', color: '#F59E0B', title: 'Marketplace',         desc: 'Browse and buy curated knowledge packs from other builders.' },
+            { icon: 'people-outline',   color: '#EF4444', title: 'Team Workspace',        desc: 'Collaborate on captures and track progress with co-founders.' },
+            { icon: 'person-circle-outline', color: Colors.primary, title: 'Creator Profile', desc: 'Build a public profile and grow your audience as a builder.' },
+          ].map(item => (
+            <View key={item.title} style={[styles.auditCard, styles.comingSoonCard]}>
+              <View style={[styles.cardIcon, { backgroundColor: item.color + '18' }]}>
+                <Ionicons name={item.icon as any} size={20} color={item.color} />
+              </View>
+              <View style={styles.auditText}>
+                <Text style={styles.cardTitle}>{item.title}</Text>
+                <Text style={styles.cardDesc}>{item.desc}</Text>
+              </View>
+              <View style={styles.soonBadge}>
+                <Text style={styles.soonBadgeText}>SOON</Text>
+              </View>
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   )
@@ -475,4 +501,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md, ...Shadow.card,
   },
   auditText: { flex: 1 },
+  comingSoonCard: { marginTop: Spacing.sm, opacity: 0.75 },
+  soonBadge: {
+    backgroundColor: Colors.textTertiary + '25', borderRadius: Radius.full,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  soonBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.textSecondary, letterSpacing: 0.5 },
 })

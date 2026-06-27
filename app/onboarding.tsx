@@ -35,7 +35,7 @@ const STAGE_OPTIONS: { value: ProjectStage; label: string; emoji: string; sub: s
 
 const ONBOARDING_KEY = 'grimoire:onboarding'
 export const ONBOARDED_KEY = 'grimoire:onboarded'
-const TOTAL_STEPS = 4
+const TOTAL_STEPS = 5
 
 export default function OnboardingScreen() {
   const router = useRouter()
@@ -58,7 +58,7 @@ export default function OnboardingScreen() {
     if (step === 0) return devType !== null
     if (step === 1) return workStyle !== null
     if (step === 2) return projectName.trim().length > 0
-    return true  // steps 3 + 4 always proceed
+    return true  // steps 3, 4 always proceed
   }
 
   const handleNext = async () => {
@@ -191,6 +191,7 @@ export default function OnboardingScreen() {
               title="Your tools"
               sub="Which AI coding tools do you use? Select all that apply."
             >
+
               <View style={styles.platformGrid}>
                 {AI_PLATFORMS.map(p => (
                   <TouchableOpacity
@@ -219,6 +220,48 @@ export default function OnboardingScreen() {
                 autoCorrect={false}
                 keyboardType="url"
               />
+            </StepContainer>
+          )}
+
+          {step === 4 && (
+            <StepContainer
+              kicker={`STEP 5 OF ${TOTAL_STEPS}`}
+              title="Your capture feed"
+              sub="When you figure out something tricky — a RevenueCat gotcha, a Railway deploy trick — save it. You'll never re-Google it, and other builders learn from it too."
+            >
+              <View style={styles.captureHowRow}>
+                {[
+                  { emoji: '🔗', label: 'Paste a URL', sub: 'Docs, a tweet, a video — anything' },
+                  { emoji: '✍️', label: 'Add key learnings', sub: 'Concepts that clicked for you' },
+                  { emoji: '📤', label: 'Share it', sub: 'Help the next builder skip the struggle' },
+                ].map(item => (
+                  <View key={item.label} style={styles.captureHowItem}>
+                    <Text style={styles.captureHowEmoji}>{item.emoji}</Text>
+                    <Text style={styles.captureHowLabel}>{item.label}</Text>
+                    <Text style={styles.captureHowSub}>{item.sub}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.captureMock}>
+                <View style={styles.captureMockTop}>
+                  <Text style={styles.captureMockSource}>RevenueCat Docs</Text>
+                  <View style={styles.captureMockBadge}>
+                    <Text style={styles.captureMockBadgeText}>technical</Text>
+                  </View>
+                </View>
+                <Text style={styles.captureMockTitle}>How to integrate RevenueCat for iOS subscriptions</Text>
+                {[
+                  'expo install, not npm — avoids SIGABRT crashes',
+                  'Purchases.configure() must run before any navigation',
+                  'Check entitlements.active["pro"] to gate features',
+                ].map((b, i) => (
+                  <View key={i} style={styles.captureMockBullet}>
+                    <Text style={styles.captureMockDot}>•</Text>
+                    <Text style={styles.captureMockBulletText}>{b}</Text>
+                  </View>
+                ))}
+              </View>
             </StepContainer>
           )}
 
@@ -392,5 +435,35 @@ const styles = StyleSheet.create({
 
   skipBtn: { alignItems: 'center', paddingVertical: Spacing.md },
   skipText: { fontSize: 13, color: Colors.textTertiary, fontWeight: '600' },
+
+  captureHowRow: {
+    flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg,
+  },
+  captureHowItem: {
+    flex: 1, alignItems: 'center', gap: 6,
+    backgroundColor: Colors.card, borderRadius: Radius.lg,
+    padding: Spacing.md, borderWidth: 1.5, borderColor: Colors.border, ...Shadow.card,
+  },
+  captureHowEmoji: { fontSize: 24 },
+  captureHowLabel: { fontSize: 12, fontWeight: '700', color: Colors.text, textAlign: 'center' },
+  captureHowSub: { fontSize: 10, color: Colors.textSecondary, textAlign: 'center', lineHeight: 14 },
+
+  captureMock: {
+    backgroundColor: Colors.card, borderRadius: Radius.lg,
+    padding: Spacing.md, ...Shadow.card,
+    borderWidth: 1.5, borderColor: Colors.primary + '30',
+    gap: 8,
+  },
+  captureMockTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  captureMockSource: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
+  captureMockBadge: {
+    backgroundColor: Colors.primary + '15', borderRadius: Radius.full,
+    paddingHorizontal: 8, paddingVertical: 2,
+  },
+  captureMockBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
+  captureMockTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, lineHeight: 20 },
+  captureMockBullet: { flexDirection: 'row', gap: 6, alignItems: 'flex-start' },
+  captureMockDot: { fontSize: 12, color: Colors.primary, fontWeight: '800', marginTop: 1 },
+  captureMockBulletText: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
 
 })

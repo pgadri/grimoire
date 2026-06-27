@@ -178,6 +178,36 @@ export async function clearLaunchDate(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync()
 }
 
+// ─── Weekly digest ────────────────────────────────────────────────────────────
+
+const WEEKLY_DIGEST_KEY = 'grimoire:weeklyDigestScheduled'
+
+export async function scheduleWeeklyDigest(): Promise<void> {
+  try {
+    const already = await AsyncStorage.getItem(WEEKLY_DIGEST_KEY)
+    if (already) return
+
+    const { status } = await Notifications.getPermissionsAsync()
+    if (status !== 'granted') return
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Weekly wrap-up ✦',
+        body: 'What did you figure out this week? Capture it before you forget — other builders will thank you.',
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+        weekday: 1,
+        hour: 18,
+        minute: 0,
+      },
+    })
+
+    await AsyncStorage.setItem(WEEKLY_DIGEST_KEY, 'true')
+  } catch {}
+}
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 export async function scheduleLaunchReminders(isoDate: string): Promise<void> {

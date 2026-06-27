@@ -12,6 +12,7 @@ import { initPurchases } from '../lib/purchases'
 import { registerPushToken } from '../lib/threads'
 import { syncReputation } from '../lib/packets'
 import { getRepState } from '../lib/reputation'
+import { scheduleWeeklyDigest } from '../lib/launch'
 import { ONBOARDED_KEY } from './onboarding'
 
 Notifications.setNotificationHandler({
@@ -70,6 +71,7 @@ export default function RootLayout() {
           if (token) registerPushToken(token).catch(() => {})
         })
         getRepState().then(rep => syncReputation(rep.points).catch(() => {}))
+        scheduleWeeklyDigest().catch(() => {})
       }
       setBoot({ user, onboarded, legalAccepted })
     }).catch(() => {
